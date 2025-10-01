@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "ESNext",
+    /* Modules */
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "removeComments": true,
+    /* Emit */
+    "outDir": "./dist",
+    //"declaration": true,
+    //"sourceMap": true,
+    //"noEmit": true,
+
+    /* Interop Constraints */
+    "esModuleInterop": true,
+//    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    /* Type Checking */
+    "strict": false,
+    /* Completeness */
+    //    "skipLibCheck": true,
+
+    "lib": [
+      "ESNext"
+    ]
+  },
+  "tsc-alias": {
+    //подключение плагина который добавляет .js в импортах при компиляции
+    "resolveFullPaths": true,
+    "verbose": false
+  },
+  "include": [
+    "index.ts",
+    "lib/**/*",
+    "src/**/*",
+    "nodes/**/*"
+  ],
+  "exclude": [
+    "./tmp",
+    "./tmp/",
+    "./tmp/**",
+    "./tmp/**/",
+    "./tmp/**/*",
+  ]
+}

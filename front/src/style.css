@@ -1,0 +1,121 @@
+@charset "UTF-8";
+@import "tailwindcss";
+/*@custom-variant dark (&:where(.dark, .dark *));*/
+@theme {
+  --color-st-white: #fff;
+}
+@layer components {
+  .st-focus {
+    @apply focus:outline-none focus:ring-3 focus:ring-offset-0 focus:ring-gray-500/50 select-none;
+  }
+  .st-border, .st-air {
+    @apply rounded-sm;
+  }
+  .st-air-tx.st-air-tx-imp, .st-air-tx-imp.st-air {
+    @apply text-gray-900;
+  }
+  .st-air-tx, .st-air {
+    @apply text-gray-500;
+  }
+  .st-air-hover {
+    @apply hover:bg-gray-500/20 transition;
+  }
+  .st-danger {
+    @apply bg-red-700 text-white transition;
+  }
+  .st-hover-danger {
+    @apply hover:bg-red-700 hover:text-white transition;
+  }
+  .bg-light-disabled {
+    @apply bg-gray-100 pointer-events-none cursor-not-allowed;
+  }
+  .bg-checked {
+    @apply bg-gray-700;
+  }
+}
+body {
+  height: 100vh;
+  overflow: hidden;
+  font-size: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.no-scroll {
+  overflow: hidden;
+}
+
+.no-resize {
+  resize: none;
+}
+
+.no-select {
+  -webkit-user-select: none;
+}
+
+.ev-none {
+  pointer-events: none;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  border: transparent;
+}
+
+::selection {
+  background-color: rgba(0, 0, 0, 0.2); /* синий из Tailwind blue-500 */
+  color: #737373;
+}
+
+@keyframes spin {
+  from {
+    transform: rotateZ(0deg);
+  }
+  to {
+    transform: rotateZ(360deg);
+  }
+}
+.rotY {
+  animation: spin 1s infinite linear;
+}
+
+.zoom-out-container {
+  position: relative;
+}
+
+.zoom-out {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  animation: growDisappear 0.5s ease;
+}
+
+@keyframes growDisappear {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  99.9% {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+.header-set {
+  outline: 1px dashed #6c6c6c;
+}
+
+/*# sourceMappingURL=style.css.map */

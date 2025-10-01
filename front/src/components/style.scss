@@ -1,0 +1,21 @@
+.editor {
+  height: 100vh;
+}
+
+.ru-container {
+  opacity: 0;
+  height: 0;
+  pointer-events: none;
+  clip-path: inset(100%);
+  position: fixed;
+  visibility: hidden;
+  top: 0;
+}
+
+
+.news-icon {
+  height: 14px;
+  width: 14px;
+  //margin-right: 0.4em;
+  padding: 0;
+}

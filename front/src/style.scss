@@ -1,0 +1,160 @@
+@import "tailwind";
+
+@theme {
+  --color-st-white: #fff;
+}
+
+//bg-white hover:bg-gray-100 text-gray-800 border border-gray-300
+
+@layer components {
+  .st-focus {
+    @apply focus:outline-none focus:ring-3 focus:ring-offset-0 focus:ring-gray-500/50 select-none;
+  }
+
+  .st-border {
+    @apply rounded-sm;
+  }
+
+  .st-air-tx.st-air-tx-imp {
+    @apply text-gray-900;
+  }
+
+  .st-air-tx {
+    @apply text-gray-500;
+  }
+
+  .st-air-bg {
+    //@apply bg-gray-200;
+  }
+
+  .st-air {
+    @extend .st-air-tx;
+    @extend .st-air-bg;
+    @extend .st-border;
+  }
+
+  .st-air-hover {
+    @apply hover:bg-gray-500/20 transition;
+  }
+
+  .st-danger {
+    @apply bg-red-700 text-white transition;
+  }
+
+  .st-hover-danger {
+    @apply hover:bg-red-700 hover:text-white transition;
+  }
+
+  .bg-light-disabled {
+    @apply bg-gray-100 pointer-events-none cursor-not-allowed;
+  }
+
+  .st-group {
+    //@apply bg-gray-500/10;
+    //outline: 1px solid #00000010;
+    //outline-offset: -1px;
+    //border-radius: 0.25rem;
+  }
+
+  .bg-checked {
+    @apply bg-gray-700 ;
+  }
+
+  .bg-unchecked {
+
+  }
+}
+
+* {
+  //outline: 1px solid rgba(0, 0, 0, 0.1);
+  //margin: 1px;
+}
+
+body {
+  height: 100vh;
+  overflow: hidden;
+  font-size: 1rem;
+  display: flex;
+  flex-direction: column;
+  //background: #8c93a1;
+}
+
+.no-scroll {
+  overflow: hidden;
+}
+
+.no-resize {
+  resize: none;
+}
+
+.no-select {
+  -webkit-user-select: none;
+}
+
+.ev-none {
+  pointer-events: none;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  //border-radius: 20px;
+  border: transparent;
+}
+
+::selection {
+  background-color: rgba(0, 0, 0, 0.2); /* синий из Tailwind blue-500 */
+  color: #737373;
+}
+
+@keyframes spin {
+  from {
+    transform: rotateZ(0deg);
+  }
+  to {
+    transform: rotateZ(360deg);
+  }
+}
+
+.rotY {
+  animation: spin 1s infinite linear;
+}
+
+.zoom-out-container {
+  position: relative;
+}
+
+.zoom-out {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  animation: growDisappear .5s ease;
+}
+
+@keyframes growDisappear {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  99.9% {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+.header-set {
+  outline: 1px dashed #6c6c6c;
+}
