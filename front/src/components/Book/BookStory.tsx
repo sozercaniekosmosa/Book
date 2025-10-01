@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useCallback, useEffect, useState} from "react";
 import JSONTreeEditor, {CallbackParams, Clb, DefaultIcon, useJsonStore} from "./JSONTreeEditor";
 import {structPlot} from "./mapBook/structPlot.ts";
 import {useShallow} from "zustand/react/shallow";
@@ -7,13 +7,14 @@ import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import clsx from "clsx";
 import {generateUID, getID, getObjectByPath, isEmpty, walkAndFilter} from "../../lib/utils.ts";
 import {toGPT} from "./general.utils.ts";
-import {promptWrite} from "./prompts.ts";
+import {fnPromptTextHandling, promptWrite} from "./prompts.ts";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
 import {structPlotArc5, structPlotArc8, structPlotArcHero, structPlotArcTravelCase} from "./mapBook/structArcs.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {minorCharacter} from "./mapBook/structCharacters.ts";
 import {structScene} from "./mapBook/structScene.ts";
+import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
 const SET_OPTIONS = 'options desc example requirements variants';
@@ -59,8 +60,6 @@ const InputEditor = ({doInput, value, className = ''}) => {
         />
     </div>;
 };
-
-const Button = (props: any) => <ButtonEx  {...{...props}}>{props.children}</ButtonEx>
 
 const pathHandler = (path: (string | number)[]) => {
     return path.join('.').toLocaleLowerCase().replaceAll(/[^a-zA-Zа-яА-Я.]/g, '-');
@@ -275,20 +274,12 @@ const DefaultHeader = (props: CallbackParams) => {
                 }
             }}/>
         </div>}
-        {!isOptions && <ButtonEx // Кнопка очистить поля
-            className={clsx("bi-eraser-fill w-[24px] h-[24px] hover:!bg-sky-600 hover:text-white transition", CONTROL_BTN)}
-            description="Очистить"
-            onConfirm={() => walkAndFilter(value, ({key, value, arrPath}) => {
-                key == 'value' && useJsonStore.getState().setAtPath(path.concat(arrPath), '');
-                return value;
-            })}/>
-        }
     </>;
 };
 const GPTHeader = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
-    let total = 0;
+    const [total, setTotal] = useState(0);
 
     useEffect(() => {
         eventBus.addEventListener('message-socket', ({type, data}) => {
@@ -301,170 +292,152 @@ const GPTHeader = (props: CallbackParams) => {
         });
     }, []);
 
+    const handleTextGPT = useCallback(async (
+        text: string,
+        fnPrompt: { requirements: string, example?: string },
+        path: any[],
+        toWrite: { (value: any, p?: any[]): void }) => {
+
+        let source = {};
+        let target = JSON.parse(JSON.stringify(text));
+
+        const _value = target.value;
+        const countWords = _value.split(' ').length; // Посчитаем слова
+
+        target.example = fnPrompt?.example ?? '';
+        target.value = '';
+
+        let promptRequirements = template(
+            fnPrompt?.requirements ?? '',
+            {
+                halfWords: Math.trunc(countWords * .5),
+                x2Words: countWords * 2,
+            });
+        target.requirements = promptRequirements + ' ' + _value
+
+        source = target;
+
+        const listPathSrc = {};
+        source = walkAndFilter(source, ({parent, key, value, hasChild, arrPath}) => {
+            if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
+
+                const id = generateUID();
+                listPathSrc[id] = [...path, ...arrPath, 'value'];
+                value.id = id;
+
+                if (value?.hasOwnProperty('options')) { // Подстановка значений
+                    const strValue = JSON.stringify(value);
+                    const _strValue = template(strValue, {...value.options});
+                    value = JSON.parse(_strValue);
+                }
+
+            }
+            return value;
+        });
+
+        source = deleteFields(source, ['options']);
+        setTotal(Object.keys(listPathSrc).length);
+
+        let resultStruct = await toGPT({prompt: promptWrite, source, path: path.join('.')});
+
+        setTotal(0);
+        eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
+
+        walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
+            if (value?.hasOwnProperty('id')) {
+                const id = value.id;
+                let val = value.value.replaceAll(/\n\n/g, '\n');
+                const path = listPathSrc[id];
+                if (typeof val == 'string')
+                    toWrite(val, path)
+                else
+                    console.error('Тип результата не соответствует', val);
+            }
+            return value;
+        });
+
+    }, []);
+
+    const generateTextGPT = useCallback(async () => {
+
+        let source = JSON.parse(JSON.stringify(useJsonStore.getState().json));
+        source = prepareStructure(source);
+
+        let target = JSON.parse(JSON.stringify(value));
+
+        const [obj, key] = getObjectByPath(source, path as string[]);
+        obj[key] = target;
+
+        const listPathSrc = {};
+        source = walkAndFilter(source, ({parent, key, value, hasChild, arrPath}) => {
+            if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
+
+                const id = generateUID();
+                listPathSrc[id] = [...arrPath, 'value'];
+                value.id = id;
+
+                if (value?.hasOwnProperty('options')) { // Подстановка значений
+                    const strValue = JSON.stringify(value);
+                    const _strValue = template(strValue, {...value.options});
+                    value = JSON.parse(_strValue);
+                }
+
+            }
+            return value;
+        });
+
+        source = deleteFields(source, ['options']);
+        setTotal(Object.keys(listPathSrc).length);
+
+        source.uid = Date.now();
+        let resultStruct = await toGPT({prompt: promptWrite, source, path: path.join('.')});
+
+        setTotal(0);
+        eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
+
+        walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
+            if (value?.hasOwnProperty('id')) {
+                const id = value.id;
+                let val = value.value.replaceAll(/\n\n/g, '\n');
+                const path = listPathSrc[id];
+                if (typeof val == 'string')
+                    toWrite(val, path)
+                else
+                    console.error('Тип результата не соответствует', val);
+
+            }
+            return value;
+        });
+
+    }, []);
+
+    const {
+        addEvil, addKindness, addNegative, addPositive, collapseText, expandText, inverseText
+    } = fnPromptTextHandling;
+
     return <>
-        <Button className={clsx('bi-stars w-[24px] h-[24px]', CONTROL_BTN)} onAction={async () => {
-
-            let source = JSON.parse(JSON.stringify(useJsonStore.getState().json));
-            source = prepareStructure(source);
-
-            let target = JSON.parse(JSON.stringify(value));
-
-            const [obj, key] = getObjectByPath(source, path as string[]);
-            obj[key] = target;
-
-            const listPathSrc = {};
-            source = walkAndFilter(source, ({parent, key, value, hasChild, arrPath}) => {
-                if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
-
-                    const id = generateUID();
-                    listPathSrc[id] = [...arrPath, 'value'];
-                    value.id = id;
-
-                    if (value?.hasOwnProperty('options')) { // Подстановка значений
-                        const strValue = JSON.stringify(value);
-                        const _strValue = template(strValue, {...value.options});
-                        value = JSON.parse(_strValue);
-                    }
-
-                }
-                return value;
-            });
-
-            source = deleteFields(source, ['options']);
-            total = Object.keys(listPathSrc).length;
-
-            source.uid = Date.now();
-            let resultStruct = await toGPT({prompt: promptWrite, source, path: path.join('.')});
-
-            console.log(listPathSrc);
-            console.log(source, target);
-
-            console.log(resultStruct);
-
-            total = 0;
-            eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
-
-            walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
-                if (value?.hasOwnProperty('id')) {
-                    const id = value.id;
-                    let val = value.value.replaceAll(/\n\n/g, '\n');
-                    const path = listPathSrc[id];
-                    if (typeof val == 'string')
-                        toWrite(val, path)
-                    else
-                        console.error('Тип результата не соответствует', val);
-
-                }
-                return value;
-            });
-
-        }}/>
-        <Button className={clsx('bi-arrows-expand w-[24px] h-[24px]', CONTROL_BTN)} onAction={async () => {
-
-            // debugger;
-            let source = {};
-            source = JSON.parse(JSON.stringify(useJsonStore.getState().json));
-            source = prepareStructure(source);
-
-            let target = JSON.parse(JSON.stringify(value));
-
-            const _value = target.value;
-            const countWords = _value.split(' ').length; // Посчитаем слова
-
-
-            const neg = 'Герой жует бутерброд, а в нём оказывается дохлый таракан. ' + 'Во время застолья у него застревает кусок еды между зубами, и все это замечают. ' + 'Он случайно чихает в момент, когда кто-то протягивает ему руку. ' + 'У героя рвутся штаны на виду у большого количества людей. ' + 'Он наступает в собачьи экскременты и тащит их на обуви в помещение. ' + 'В транспорте к нему прижимается человек с сильным запахом пота. ' + 'Герой приходит в гости и обнаруживает в чашке чая чужой волос. ' + 'Его громко тошнит на людной вечеринке. ' + 'У него прилипает жвачка к волосам. ' + 'Во время публичного выступления у него начинает течь нос. ' + 'Герой случайно отправляет личное сообщение не тому человеку. ' + 'Его зовут на сцену, а у него оказывается ширинка расстёгнута. ' + 'В автобусе он пытается удержаться за поручень, но хватает чью-то липкую руку. ' + 'Герой падает в грязную лужу прямо перед знакомым человеком. ' + 'В ресторане он обнаруживает в супе насекомое. ' + 'Герой неловко пердит в тишине, и все это слышат. ' + 'Он случайно проливает на себя горячий кофе и пахнет обожжённой тканью. ' + 'В лифте у кого-то разливается молоко, и запах быстро становится невыносимым. ' + 'Герой забывает выключить микрофон и все слышат его личный разговор. ' + 'У него ломается зуб во время важного свидания. ' + 'Герой случайно наступает на чей-то каблук и отрывает его. ' + 'Его подвозят, а в машине резкий запах рыбы или тухлой еды. ' + 'Он замечает, что у него вся рубашка в потных пятнах именно в момент приветствия. ' + 'Герой слышит, как у соседей занимаются интимом, и не может заснуть. ' + 'Он поднимает упавшую монету, а она оказывается вся в чем-то липком.'
-
-            const pos = 'Герой помогает слабому — например, заступается за ребёнка или животное. ' + 'Неожиданный талант — герой вдруг проявляет скрытую способность (поёт, рисует, играет), удивляя и вдохновляя окружающих. ' + 'Победа над собой — герой преодолевает внутренний страх или сомнение. ' + 'Маленькая победа — успешно чинит что-то своими руками, что казалось безнадёжным. ' + 'Приятный сюрприз для других — готовит подарок или устраивает праздник. ' + 'Искренняя благодарность — кто-то благодарит героя от всего сердца за помощь. ' + 'Непоколебимая честность — он говорит правду в трудной ситуации, хотя мог бы промолчать. ' + 'Случайная доброта — помогает незнакомцу без всякой выгоды. ' + 'Творческое решение — находит нестандартный выход из сложной ситуации. ' + 'Заслуженное признание — его труд замечают и ценят. ' + 'Неожиданный успех — выигрывает конкурс, сдаёт трудный экзамен или получает похвалу. ' + 'Улыбка ребёнка — герой делает что-то, от чего ребёнок искренне радуется. ' + 'Проявление мужества — защищает друга, рискуя собой. ' + 'Тёплый жест — делится последним куском хлеба или отдаёт свою куртку замёрзшему. ' + 'Смех и радость — смешит других своим остроумием или неловкой, но доброй ситуацией. ' + 'Неожиданный союзник — животное или человек доверяет герою с первого взгляда. ' + 'Заслуженное восхищение — он показывает мастерство в деле, которому учился долго. ' + 'Возвращение надежды — герой вдохновляет другого персонажа, у которого "опустились руки". ' + 'Трогательная забота — лечит, ухаживает или поддерживает кого-то в болезни или беде. ' + 'Красивый жест великодушия — прощает врага или делится успехом с другими. ' + 'Озарение — герой неожиданно понимает что-то важное, что открывает дорогу к счастью. ' + 'Детская радость — делает что-то наивное и простое (например, запускает воздушного змея), и это заражает радостью всех вокруг. ' + 'Маленькое чудо — случайно оказывается в нужном месте и спасает ситуацию. ' + 'Верность слову — исполняет обещание, несмотря на трудности.'
-
-            target.example = '';
-            target.value = '';
-
-            // let promptRequirements = template('Увеличить объем текста который в скобках до $x2Words$ слов сохраняя смысл', {
-            // let promptRequirements = template('Уменьшить объем текста который в скобках до $halfWords$ слов сохраняя смысл', {
-            let promptRequirements = template(
-                //     'Перепиши текст в скобках так, чтобы он сохранил смысл, но звучал доброжелательно, мягко и позитивно. ' +
-                //     'Убирай резкость и грубость, заменяй на вежливые, ободряющие слова. ' +
-                //     'Критику делай конструктивной и уважительной. ' +
-                //     'Приказы превращай в дружеские рекомендации. ' +
-                //     'Итоговый стиль: тёплый, ясный, дружелюбный.',
-
-                //     'Перепиши текст в скобках так, чтобы он сохранил смысл, но звучал максимально злым, ' +
-                //     'агрессивным и враждебным. Замени нейтральные слова на жесткие с ' +
-                //     'отрицательной окраской, добавь презрение, сарказм и холодную агрессию.',
-
-                //     'Перепиши текст в скобках сохранияя сюжет, но добавляяя для персонажа нелепую/неприятную ситуацию/событие, ' +
-                //     'которое вызывают у читателя отвращение, неловкость, стыд, брезгливость или раздражение. Используй узнаваемые ситуации: ' +
-                //     'падения, опаздания, помощь которая оказывает персонаж, но та обрачивается болшей бедой, досадные ошибки, социальные промахи, неловкие ситуации. ' +
-                //     'Делай вставки правдоподобными и естественными, чтобы они усиливали эмоциональный дискомфорт без разрушения логики повествования',
-
-                'Сохраняя сюжет, добавь удачную/приятную ситуацию/событие, ' +
-                'вызывающе радость, воодушевление, гордость, симпатию или восхищение. Используй узнаваемые ситуации. ' +
-                'неожиданные везения, своевременные появления, помощь, которую персонаж оказывает и которая приносит значительную пользу, счастливые совпадения, удачные решения, социальные триумфы, вдохновляющие моменты. ' +
-                'Делай вставки правдоподобными и естественными, чтобы они усиливали положительный эмоциональный эффект без разрушения логики повествования, для этого текста: ',
-
-                {
-                    halfWords: Math.trunc(countWords * .5),
-                    x2Words: countWords * 2,
-                });
-            target.requirements =
-                promptRequirements + ' ' +
-                _value // Добвляем текущее значение value в промпт
-            // + (target.requirements ?? '');
-
-            const [obj, key] = getObjectByPath(source, path as string[]);
-            obj[key] = target;
-            // source = target;
-
-            const listPathSrc = {};
-            source = walkAndFilter(source, ({parent, key, value, hasChild, arrPath}) => {
-                if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
-
-                    const id = generateUID();
-                    listPathSrc[id] = [...arrPath, 'value'];
-                    value.id = id;
-
-                    if (value?.hasOwnProperty('options')) { // Подстановка значений
-                        const strValue = JSON.stringify(value);
-                        const _strValue = template(strValue, {...value.options});
-                        value = JSON.parse(_strValue);
-                    }
-
-                }
-                return value;
-            });
-
-            source = deleteFields(source, ['options']);
-            total = Object.keys(listPathSrc).length;
-            // console.log(source, target);
-            // return
-
-            // @ts-ignore
-            source.uid = Date.now();
-            let resultStruct = await toGPT({prompt: promptWrite, source, path: path.join('.')});
-
-            console.log(listPathSrc);
-            console.log(source, target);
-
-            console.log(resultStruct);
-
-            total = 0;
-            eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
-
-            walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
-                if (value?.hasOwnProperty('id')) {
-                    const id = value.id;
-                    let val = value.value.replaceAll(/\n\n/g, '\n');
-                    const path = listPathSrc[id];
-                    if (typeof val == 'string')
-                        toWrite(val, path)
-                    else
-                        console.error('Тип результата не соответствует', val);
-
-                }
-                return value;
-            });
-
-        }}/>
+        <DropdownButton title={<div className="bi-star"/>} className={'px-1 ' + CONTROL_BTN} isChevron={false}>
+            <div className={clsx(
+                'flex flex-col bg-white gap-0.5',
+                'outline-1 outline-gray-200 rounded-[5px] p-2'
+            )}>
+                <ButtonEx className={clsx('bi-stars w-[24px] h-[24px]')} onAction={() => generateTextGPT()}/>
+                <ButtonEx className={clsx('bi-sun w-[24px] h-[24px]')}
+                          onAction={() => handleTextGPT(value, addKindness, path, toWrite)}/>
+                <ButtonEx className={clsx('bi-cloud-rain w-[24px] h-[24px]')}
+                          onAction={() => handleTextGPT(value, addEvil, path, toWrite)}/>
+                <ButtonEx className={clsx('bi-emoji-smile w-[24px] h-[24px]')}
+                          onAction={() => handleTextGPT(value, addPositive, path, toWrite)}/>
+                <ButtonEx className={clsx('bi-emoji-frown w-[24px] h-[24px]')}
+                          onAction={() => handleTextGPT(value, addNegative, path, toWrite)}/>
+                <ButtonEx className={clsx('bi-arrows-fullscreen w-[24px] h-[24px]')}
+                          onAction={() => handleTextGPT(value, expandText, path, toWrite)}/>
+                <ButtonEx className={clsx('bi-arrows-collapse-vertical w-[24px] h-[24px]')}
+                          onAction={() => handleTextGPT(value, collapseText, path, toWrite)}/>
+                <ButtonEx className={clsx('bi-circle-half w-[24px] h-[24px]')}
+                          onAction={() => handleTextGPT(value, inverseText, path, toWrite)}/>
+            </div>
+        </DropdownButton>
     </>
 };
 
@@ -528,17 +501,33 @@ export const StoryEditor: React.FC = () => {
                     }}
         >
             {isToggle &&
-                <button type="button" onClick={() => toSwitch()} className="p-1 rounded hover:bg-gray-100">
+                <ButtonEx onClick={() => toSwitch()} className="p-1 rounded hover:bg-gray-100">
                     <DefaultIcon collapse={collapsed}/>
-                </button>
+                </ButtonEx>
             }
             {isCharacterHeader && <CharacterHeader {...props}/>}
             {isSceneHeader && <SceneHeader {...props}/>}
             {isDefaultHeader && <DefaultHeader {...props}/>}
 
             {!isOptions && <GPTHeader {...props}/>}
+            <DropdownButton title={<div className="bi-three-dots-vertical"/>} className={CONTROL_BTN} isChevron={false}
+            >
+                <div className={clsx(
+                    'flex flex-col bg-white gap-0.5',
+                    'outline-1 outline-gray-200 rounded-[5px] p-2'
+                )}>
+                    {!isOptions && <ButtonEx // Кнопка очистить поля
+                        className={clsx("bi-eraser-fill w-[24px] h-[24px] hover:!bg-sky-600 hover:text-white transition", CONTROL_BTN)}
+                        description="Очистить"
+                        onConfirm={() => walkAndFilter(value, ({key, value, arrPath}) => {
+                            key == 'value' && useJsonStore.getState().setAtPath(path.concat(arrPath), '');
+                            return value;
+                        })}/>
+                    }
+                </div>
+            </DropdownButton>
             {!isOptions && <div className="justify-items-end flex-1">
-                <Button className={clsx(
+                <ButtonEx className={clsx(
                     value?.options?.forcedIncludes ? 'bi-gear-fill' : 'bi-gear',
                     'w-[24px] h-[24px]',
                     CONTROL_BTN,
@@ -607,7 +596,142 @@ export const StoryEditor: React.FC = () => {
                 <button
                     className="px-3 py-1 border rounded"
                     onClick={() => {
-                        const arr = []
+                        const arr = [
+
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Название",
+                                    "value"
+                                ],
+                                "Город в облаках"
+                            ],
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Жанр",
+                                    "value"
+                                ],
+                                "Приключения, путешествия, детектив"
+                            ],
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Общее настроение",
+                                    "value"
+                                ],
+                                "Авантюрное, веселое"
+                            ],
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Эпоха",
+                                    "value"
+                                ],
+                                "20 век 30е годы"
+                            ],
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Возраст аудитории",
+                                    "value"
+                                ],
+                                "Для всех, от детей до взрослых"
+                            ],
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Ключевые вопросы",
+                                    "value"
+                                ],
+                                "Дружба, веверность, следование целям, способность пожертвовать собой ради других"
+                            ],
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Основные противоречия",
+                                    "value"
+                                ],
+                                "Преодаление трудностей на пути к заветной цели, борьба с врагом в лице главного злодя, помощь и спасение нуждающихся"
+                            ],
+                            [
+                                [
+                                    "Общие",
+                                    "Основные",
+                                    "Образы символы",
+                                    "value"
+                                ],
+                                "Путешествие как метафора личного роста и преодоления; дороги и тропы как выбор пути героя; погоня как символ стремления к цели и отчаянного бегства."
+                            ]
+
+                            // [
+                            //     ["Общие", "Основные", "Общее настроение", "value"],
+                            //     "драматический"
+                            // ],
+                            // [
+                            //     ["Общие", "Сюжет кратко", "Экспозиция", "value"],
+                            //     "Ветеран афганской войны, Сергей Князев, вернулся домой. Шел 1989 год — поздний ссср. Жизнь его идет на перекосяк, в стране разруха и расцветает бандитизм. Родители умерли и оставив Сергею квартиру, но бандиты ловко подделав документы, переписали квартиру на подставное лицо, Так Сергей оказывается на улице. Не долгие скитания по подъздам, приводят его на старый заброшенный склад, где он в скоре \"встревает\" в бандитские разборки."
+                            // ],
+                            // [
+                            //     ["Общие", "Сюжет кратко", "Завязка", "value"],
+                            //     "Негодяи истезают молодую девушку, требуя отдать долги её покойного мужа. Сергей не выдерживает и пытается востановить справедливость, (ведь он и сам пострадал от бандитского произвола). Но видмо судьба и в этот раз отворачивается от него и Сергея убивают. \nРазум и душа Сергея перемещаются в магический мир стредневековья, в тело молодого воришки, который только что стащил древний магический артефакт, но владелец артефакта настиг воришку и ударил заклятьем. Заклятьем, которое попав в украденый артефакт разрушило его и попутно прикончило незадачливого воришку, освободив тело для Сергея и давая ему второй шанс. Сергей после перемещения не сразу приходит в себя, но после обнаруживает у себя магические способности (позже по сюжету выяснится, что это произошло из-за того, что в момент смерти, магический удар попал по артефакту и странным образом магические сопосбности артефакта передались Сергею в новом теле)"
+                            // ],
+                            // [
+                            //     ["Общие", "Сюжет кратко", "Развитие действия", "value"],
+                            //     "Очнувшись в незнакомом теле, Сергей постепенно осознает произошедшее. Он понимает, что находится в другом мире, где магия – реальность, а его новое тело обладает скрытым потенциалом. Первые дни он пытается выжить в трущобах города, используя воровские навыки своего предшественника. Параллельно он изучает свои новые способности, которые упешно использует врешении постоянно возникающих проблем. \nВскоре Сергей случайно переходит дорогу могущественным силам, которые решают покончить с ним. Ему приходится выбирать между тем, чтобы скрываться и выживать в одиночку, или же принять свою новую судьбу и попытаться разобраться в происходящем, попутно раскрывая тайны своего прошлого и артефакта, который изменил его жизнь. На пути ему встречаются как враги, так и союзники, каждый из которых преследует свои цели. Бандиты, магические кланы, инквизиторы и простолюдины - все они оказываются втянуты в паутину интриг, центром которой становится Сергей."
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Имя кратко", "value"],
+                            //     "Князь"
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Имя полное", "value"],
+                            //     "Сергей Князев, Серёга, Князь, Князь-младший"
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Возраст", "value"],
+                            //     "Около 30 лет (в мире средневековья - 20 лет)"
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Цели", "value"],
+                            //     "Выжить в новом мире, разобраться в произошедшем, обрести справедливость"
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Жизненная ситуация", "value"],
+                            //     "Вор в трущобах, беглец, невольный участник политических интриг"
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Прошлое", "value"],
+                            //     "Сергей Князев – ветеран Афганской войны, человек, видевший смерть и предательство. Вернувшись в мирную жизнь, он столкнулся с еще большей несправедливостью: потерей жилья из-за бандитского произвола и равнодушия системы. Опыт войны закалил его, научил выживать и бороться до конца, но вместе с тем оставил глубокие шрамы на душе. Он циничен, немногословен и не склонен доверять людям, но в глубине души сохранил стремление к справедливости и готовность защищать слабых. Предательство тех, кому он верил, сделало его осторожным и подозрительным, но не сломило его волю к жизни."
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Отношения", "value"],
+                            //     "Пока одинок, но постепенно обзаводится союзниками и врагами"
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Интеллект и творчество", "value"],
+                            //     "Сообразителен, быстро учится, обладает стратегическим мышлением, проявляет смекалку в критических ситуациях. Скрытый магический потенциал."
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Скрытые цели", "value"],
+                            //     "Найти способ вернуться домой или обрести новый дом, отомстить виновным в его бедах (как в прошлом, так и в настоящем)"
+                            // ],
+                            // [
+                            //     ["Персонажи", "Главный герой", "Основные", "Мораль", "value"],
+                            //     "Стремится к справедливости, но не чужд компромиссам и использованию сомнительных методов ради достижения цели. Готов помогать слабым и защищать невинных."
+                            // ],
+                            // [
+                            //     ["Сюжетная арка", "Экспозиция", "value"],
+                            //     "1. Москва, 1989 год. Сергей Князев, одетый в поношенную дембельскую форму, с трудом пробирается через толпу на вокзале. В руках у него видавший виды армейский вещмешок. Он ищет глазами встречающих, но никого не находит. Чувство одиночества накрывает его с головой. (1 час).\n2. Квартира Князева. Сергей стоит посреди пустой, обшарпанной квартиры. Обстановка убогая: старый диван, продавленный посередине, стол, покрытый клеенкой, и пара стульев. На стенах обои в цветочек давно выцвели. Он пытается найти хоть какие-то следы родителей, но находит лишь пыль и запустение. Слышен шум из-за стены – пьяная ругань соседей. (2 часа).\n3. Улица. Сергей бесцельно бродит по улицам города, пытаясь найти работу. Заходит в несколько мест, но везде получает отказ. Возле комиссионного магазина он замечает группу подозрительных личностей, о чем-то оживленно беседующих. Один из них, по кличке Шрам, бросает на Сергея презрительный взгляд. (4 часа).\n4. Заброшенный склад. Сергей устраивается на ночлег в заброшенном складе. В углу, на грязном матрасе, спит местный бомж по прозвищу Филин. Тот ворчливо оглядывает Князя, но ничего не говорит. Ночью Сергей просыпается от странных звуков – приглушенные голоса и лязг металла. Он осторожно выглядывает из-за укрытия и видит, как несколько бандитов пытают молодого мужчину, требуя деньги."
+                            // ]
+                        ]
 
                         const _json = JSON.parse(JSON.stringify(structPlot));
 

@@ -8,6 +8,7 @@ type DropdownSize = 'sm' | 'md' | 'lg';
 interface DropdownProps extends React.HTMLAttributes<Element> {
     className?: string;
     isSpinner?: boolean;
+    isChevron?: boolean;
     title?: string | any;
     variant?: DropdownVariant;
     size?: DropdownSize;
@@ -15,7 +16,7 @@ interface DropdownProps extends React.HTMLAttributes<Element> {
 }
 
 const DropdownButton: React.FC<DropdownProps> =
-    ({className = '', title, variant = 'light', size = 'md', isSpinner = false, children}) => {
+    ({className = '', title, variant = 'light', size = 'md', isSpinner = false, isChevron = true, children}) => {
         const [isOpen, setIsOpen] = useState(false);
         const [position, setPosition] = useState<DOMRect | null>(null)
         const dropdownRef = useRef<HTMLButtonElement>(null);
@@ -36,7 +37,7 @@ const DropdownButton: React.FC<DropdownProps> =
         // Map sizes to Tailwind classes
         const sizeClasses: Record<DropdownSize, string> = {
             sm: 'text-xs px-2 py-1',
-            md: 'px-2 py-0',
+            md: 'px-0.5 py-0',
             lg: 'text-lg px-4 py-2'
         };
 
@@ -61,12 +62,14 @@ const DropdownButton: React.FC<DropdownProps> =
                     )}
                 >
                     {isSpinner && <Spinner className="opacity-50 !w-[1em] !h-[1em]"/>}
-                    <div dangerouslySetInnerHTML={{__html: title}}></div>
-                    <svg className="-mr-1 ml-1 h-[16px] w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
-                         fill="currentColor">
-                        <path fillRule="evenodd" clipRule="evenodd"
-                              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
-                    </svg>
+                    {/*<div dangerouslySetInnerHTML={{__html: title}}></div>*/}
+                    {title}
+                    {isChevron &&
+                        <svg className="-mr-1 ml-1 h-[16px] w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                             fill="currentColor">
+                            <path fillRule="evenodd" clipRule="evenodd"
+                                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+                        </svg>}
                 </button>
                 {isOpen && <>
                     <div className="fixed left-0 top-0 w-screen h-screen opacity-0" onClick={() => setIsOpen(false)}

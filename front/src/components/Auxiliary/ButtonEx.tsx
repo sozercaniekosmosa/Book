@@ -44,6 +44,8 @@ const ButtonEx: FC<IButtonExProps> = ({
 
     let onAct = async (e: React.MouseEvent<HTMLElement>) => {
         if (disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
         onClick && onClick(e);
         if (onConfirm) {
             if (e.ctrlKey) { //если с ctrl то без подтверждения
