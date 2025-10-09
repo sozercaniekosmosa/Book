@@ -202,19 +202,28 @@ const MinorCharacterHeader = (props: CallbackParams) => {
 const General = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
     if (path[0] != 'Общие') return null;
+
+    const tags = value?.options?.tags;
+    const isAllCharacters = isEqualString(tags, 'plot-short');
+
     let isOptions = LIST_KEY_NAME[keyName];
     let name: string = isOptions ?? keyName;
-    return <div className="text-nowrap">{name}</div>;
+
+    if (isAllCharacters)
+        return <div className="text-nowrap">{name}</div>;
+    else
+        return <div className="text-nowrap">{name}</div>;
 };
 const Characters = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
     if (path[0] != 'Персонажи') return null;
 
-    const isAllCharacters = isEqualString(value?.options?.tags, 'all-characters');
-    const isCharacters = isEqualString(value?.options?.tags, 'character');
-    const isMinorCharacters = isEqualString(value?.options?.tags, 'minor-characters');
-    const isMinorCharacter = isEqualString(value?.options?.tags, 'minor-character');
+    let tags = value?.options?.tags;
+    const isAllCharacters = isEqualString(tags, 'all-characters');
+    const isCharacters = isEqualString(tags, 'character');
+    const isMinorCharacters = isEqualString(tags, 'minor-characters');
+    const isMinorCharacter = isEqualString(tags, 'minor-character');
 
     let isOptions = LIST_KEY_NAME[keyName];
     let name: string = isOptions ?? keyName;
@@ -276,11 +285,12 @@ const PlotArc = (props: CallbackParams) => {
 
     if (path[0] != 'Сюжетная арка') return null;
 
-    const isSceneItem = value?.options?.tags?.includes('scene');
-    const isPlotArc = value?.options?.tags?.includes('сюжетная-арка');
-    const isPlotArcItem = value?.options?.tags?.includes('plot-arc-item');
-    const isArcEventsItem = value?.options?.tags?.includes('arc-events');
-    const isSceneHeader = value?.options?.tags?.includes('scene');
+    const tags = value?.options?.tags;
+    const isSceneItem = tags?.includes('scene');
+    const isPlotArc = tags?.includes('сюжетная-арка');
+    const isPlotArcItem = tags?.includes('plot-arc-item');
+    const isArcEventsItem = tags?.includes('arc-events');
+    const isSceneHeader = tags?.includes('scene');
 
     let isOptions = LIST_KEY_NAME[keyName];
     let name: any = isOptions ?? keyName;
@@ -386,13 +396,13 @@ const GPTHeader = (props: CallbackParams) => {
         const src = useJsonStore.getState().json;
 
         let obj: { [x: string]: any; }, key: string | number;
-        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Жанр', 'value'])
+        [obj, key] = getObjectByPath(src, ['Общие', 'Жанр', 'value'])
         const genre = obj[key];
-        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Общее настроение', 'value'])
+        [obj, key] = getObjectByPath(src, ['Общие', 'Общее настроение', 'value'])
         const mood = obj[key];
-        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Эпоха', 'value'])
+        [obj, key] = getObjectByPath(src, ['Общие', 'Эпоха', 'value'])
         const age = obj[key];
-        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Возраст аудитории', 'value'])
+        [obj, key] = getObjectByPath(src, ['Общие', 'Возраст аудитории', 'value'])
         const ageLimit = obj[key];
 
         let promptRequirements = template(fnPrompt?.requirements ?? '', {
@@ -430,7 +440,10 @@ const GPTHeader = (props: CallbackParams) => {
         source = deleteFields(source, ['options']);
         total = Object.keys(listPathSrc).length;
 
-        let resultStruct = await toGPT(promptWrite, {source, path: path.join('.')});
+        let resultStruct = await toGPT(promptWrite, {
+            source: JSON.stringify(source, null, 2),
+            path: path.join('.')
+        });
 
         total = 0;
         eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
@@ -547,14 +560,15 @@ export const clbHeader: Clb = (props: CallbackParams) => {
 
     let isOptions = LIST_KEY_NAME[keyName];
 
-    return <div className={clsx('flex items-center gap-0.5')}
-                style={{fontSize: arrSize?.[deep] ?? 14 + 'px'}}
-                onMouseDown={(e) => {
-                    if (e.button != 1) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (e.button == 1) (async () => await navigator.clipboard.writeText(pathHandler(path)))();
-                }}
+    return <div
+        className={clsx('flex items-center gap-0.5 transition-all duration-700 hover:shadow-[inset_0_-1px_1px_rgba(0,0,0,0.05)]')}
+        style={{fontSize: arrSize?.[deep] ?? 14 + 'px'}}
+        onMouseDown={(e) => {
+            if (e.button != 1) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.button == 1) (async () => await navigator.clipboard.writeText(pathHandler(path)))();
+        }}
     >
         {isToggle &&
             <ButtonEx onClick={() => toSwitch()} className="p-1 rounded hover:bg-gray-100">
