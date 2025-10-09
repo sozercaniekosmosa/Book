@@ -1,5 +1,5 @@
 export const structScene = {
-    options: {tags: 'scene', excludes: 'desc Название кратко'},
+    options: {tags: 'scene deletable', excludes: 'desc Название кратко'},
     desc: 'Сцена - место, где происходят события или изменения, значимые для сюжета и раскрытия персонажей',
     'Краткое описание': {
         options: {excludes: 'toggle', includes: 'value'},
