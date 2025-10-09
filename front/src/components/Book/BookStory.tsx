@@ -1,5 +1,5 @@
-import React, {useCallback, useEffect, useState} from "react";
-import JSONTreeEditor, {CallbackParams, Clb, DefaultIcon, useJsonStore} from "./JSONTreeEditor";
+import React, {useCallback, useEffect, useRef, useState} from "react";
+import JSONTreeEditor, {CallbackParams, Clb, DefaultIcon} from "./JSONTreeEditor";
 import {structPlot} from "./mapBook/structPlot.ts";
 import {useShallow} from "zustand/react/shallow";
 import TextWrite from "../Auxiliary/TextWrite.tsx";
@@ -15,16 +15,20 @@ import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {minorCharacter} from "./mapBook/structCharacters.ts";
 import {structScene} from "./mapBook/structScene.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
+import data from "./data/data.json" with {type: "json"};
+import {useJsonStore} from "./store/storeBook.ts";
+import dialog from "../Auxiliary/Dialog.tsx";
+
 
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
 const SET_OPTIONS = 'options desc example requirements variants';
 const LIST_KEY_NAME = {desc: 'Описание', example: 'Пример', requirements: 'Требования', variants: 'Варианты'};
 
 // forced update browse
-if (+localStorage.getItem('___refresh') < Date.now()) {
-    localStorage.setItem('___refresh', String(Date.now() + 3000));
-    window.location.reload();
-}
+// if (+localStorage.getItem('___refresh') < Date.now()) {
+//     localStorage.setItem('___refresh', String(Date.now() + 3000));
+//     window.location.reload();
+// }
 
 const TextEditor = ({toWrite, value, parent, className = ''}) => {
     const [curVal, setCurVal] = useState(value);
@@ -43,13 +47,37 @@ const TextEditor = ({toWrite, value, parent, className = ''}) => {
     />;
 };
 
-const InputEditor = ({doInput, value, className = ''}) => {
+const InputNumberEditor = ({doInput, value, className = ''}) => {
     const [curVal, setCurVal] = useState(value);
+    const [isFocus, setIsFocus] = useState(false);
+    const nodeRef = useRef<HTMLDivElement>(null);
 
-    return <div className="flex flex-row">
+    useEffect(() => {
+        const el = nodeRef.current;
+        if (!el) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+
+            if (isFocus) {
+                setCurVal((val) => val + (e.deltaY > 0 ? -1 : 1));
+            }
+        };
+
+        el.addEventListener('wheel', handleWheel, {passive: false});
+        return () => el.removeEventListener('wheel', handleWheel);
+    }, [isFocus]);
+
+
+    return <div ref={nodeRef} className="flex flex-row">
         <input value={curVal}
                onChange={e => setCurVal(e.target.value)}
-               onBlur={() => doInput(+curVal)}
+               onBlur={() => {
+                   setIsFocus(false);
+                   return doInput(+curVal);
+               }}
+               onFocus={() => setIsFocus(true)}
                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                    if (e.key === "Enter") {
                        (e.target as HTMLInputElement).blur();
@@ -76,20 +104,42 @@ const isImmediateChildren = (path: string, name: string) => {
     }
 };
 
-const deleteFields = (dataStruct: any, arrFields) => {
-    return walkAndFilter(dataStruct, ({value}) => {
+const applyGPTResult = (resultStruct: any, listPathSrc: {}) =>
+    walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
+        if (value?.hasOwnProperty('id')) {
+            const id = value.id;
+            let val = value?.target?.replaceAll?.(/\n\n/g, '\n');
+            if (typeof val != 'string') return value;
+
+            const path = listPathSrc[id];
+            const [obj, key] = getObjectByPath(useJsonStore.getState().json, path);
+            if (obj?.hasOwnProperty('value')) {
+                useJsonStore.getState().setAtPath(path, val);
+            } else {
+                debugger;
+                console.error('Тип результата не соответствует', val);
+            }
+        }
+        return value;
+    });
+
+const deleteFields = (dataStruct: any, arrFields) =>
+    walkAndFilter(dataStruct, ({value}) => {
         arrFields.forEach((field: string) => {
             if (value?.hasOwnProperty(field)) delete value[field];
         });
         return value;
-    })
-}
+    });
+
+const deleteEmpty = (dataStruct: any) =>
+    walkAndFilter(dataStruct, ({key, value}) =>
+        (key != 'target' && key != 'value') && isEmpty(value) ? null : value);
+
 /**
  * Подготовка, убирает из верхних узлов все не заполненые с (value=='')
  * @param dataStruct
  */
-const prepareStructure = (dataStruct: any) => {
-
+const prepareStructureFirst = (dataStruct: any) => {
 
     const dataFilteredEmptyVal = walkAndFilter(dataStruct, ({parent, key, value, hasChild, arrPath}) => {
 
@@ -102,48 +152,70 @@ const prepareStructure = (dataStruct: any) => {
         return value;
     })
 
-    const delFields = deleteFields(dataFilteredEmptyVal, ['options', 'desc', 'example', 'requirements', 'variants']);
+    const delFields = deleteFields(dataFilteredEmptyVal, [
+        // 'options',
+        'desc', 'example', 'requirements', 'variants']);
 
     let nodeCharacters = delFields?.['Персонажи'];
 
     if (Object.keys(nodeCharacters?.['Главный герой']).length == 2) delete nodeCharacters['Главный герой'];
     if (Object.keys(nodeCharacters?.['Антогонист']).length == 2) delete nodeCharacters['Антогонист'];
 
-    // const arrSecondaryChar = Object.entries(nodeCharacters?.['Второстепенные песонажи']) // => в массив
-    // const arrFields = ['desc', 'example', 'requirements'];
-    // const numberOfCharacters = arrSecondaryChar.length - arrFields.length;
-    // const arrSkip = arrSecondaryChar
-    //     .filter(([key, _]) => !arrFields.includes(key)) // отбрасываем ненужные
-    //     .filter(([_, val]) => Object.keys(val).length == 0) // оставляем только пустые
-    //     .map(([key, _]) => key) // мапим только значения
-
-    // if (arrSkip) {
-    //     if (numberOfCharacters == arrSkip.length) {
-    //         delete nodeCharacters?.['Второстепенные песонажи']
-    //     } else {
-    //         arrSkip.forEach(key => delete nodeCharacters?.['Второстепенные песонажи'][key]) // чистим пустые
-    //     }
-    // }
-
     if (isEmpty(nodeCharacters)) delete dataFilteredEmptyVal?.['Персонажи'];
-
-    // let res = walkAndFilter(dataFilteredEmptyVal, ({parent, key, value, hasChild, arrPath}) => {
-    //     if (isEmpty(value)) return null; // Убираем пустые узлы типа: {}
-    //     return value;
-    // })
-    // res = walkAndFilter(res, ({parent, key, value, hasChild, arrPath}) => {
-    //     if (isEmpty(value)) return null; // Убираем пустые узлы типа: {}
-    //     return value;
-    // })
 
     return dataFilteredEmptyVal;
 }
+const prepareStructureSecond = (dataStruct: any) => {
+    dataStruct = walkAndFilter(dataStruct, ({key, value}) => {
+        if (value?.hasOwnProperty('value')) {
+            const incompressible = value?.options?.tags?.includes('incompressible');
+            delete value.requirements;
+            delete value.example;
+            // delete value.desc;
+            if (!incompressible) return value.value; // Сжимаем объект в каждый узел подставляем значение value
+        }
+        return value;
+    });
+    dataStruct = deleteFields(dataStruct, ['options']);
+    dataStruct = deleteEmpty(dataStruct);
+    dataStruct = deleteEmpty(dataStruct);
+    dataStruct = deleteEmpty(dataStruct);
+
+    return dataStruct;
+}
+
+const ImageUploadBase64: React.FC = () => {
+    const [base64, setBase64] = useState<string | null>(null);
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setBase64(reader.result as string);
+                console.log(reader.result)
+            };
+            reader.readAsDataURL(file); // Преобразует файл в base64
+        }
+    };
+
+    return (
+        <div>
+            <input type="file" accept="image/*" onChange={handleFileChange}/>
+            {base64 && (
+                <div>
+                    <img src={base64} alt="Uploaded" style={{maxWidth: '300px', marginTop: '10px'}}/>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const SceneHeader = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
-    const sceneName = value?.['Основные']?.['Название кратко']?.value;
-    const sceneDesc = value?.['Основные']?.['Название кратко']?.desc;
+    const sceneName = value?.['Название кратко']?.value;
+    const sceneDesc = value?.['Название кратко']?.desc;
 
     const [_val, set_val] = useState<any>(sceneName);
 
@@ -155,10 +227,10 @@ const SceneHeader = (props: CallbackParams) => {
             value={_val}
 
             onChange={(e) => set_val(e.target.value)}
-            onBlur={() => useJsonStore.getState().setAtPath(path.concat(['Основные', 'Название кратко', 'value']), _val)}
+            onBlur={() => useJsonStore.getState().setAtPath(path.concat(['Название кратко', 'value']), _val)}
             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter" && e.ctrlKey) {
-                    useJsonStore.getState().setAtPath(path.concat(['Основные', 'Название кратко', 'value']), _val);
+                    useJsonStore.getState().setAtPath(path.concat(['Название кратко', 'value']), _val);
                     (e.target as HTMLInputElement).blur();
                 }
             }}
@@ -173,15 +245,15 @@ const SceneHeader = (props: CallbackParams) => {
                   onConfirm={() => {
                       useJsonStore.getState().removeAtPath(path);
                       // @ts-ignore
-                      eventBus.dispatchEvent('set-scroll-top', useJsonStore.getState().temp?.scrollTop);
+                      // eventBus.dispatchEvent('set-scroll-top', useJsonStore.getState().temp?.scrollTop);
                   }}/>
     </>;
 };
 const CharacterHeader = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
-    const characterName = value?.['Основные']?.['Имя кратко']?.value;
-    const characterDesc = value?.['Основные']?.['Имя кратко']?.desc;
+    const characterName = value?.['Имя кратко']?.value;
+    const characterDesc = value?.['Имя кратко']?.desc;
 
     const [_val, set_val] = useState<any>(characterName);
 
@@ -193,10 +265,10 @@ const CharacterHeader = (props: CallbackParams) => {
             value={_val}
 
             onChange={(e) => set_val(e.target.value)}
-            onBlur={() => useJsonStore.getState().setAtPath(path.concat(['Основные', 'Имя кратко', 'value']), _val)}
+            onBlur={() => useJsonStore.getState().setAtPath(path.concat(['Имя кратко', 'value']), _val)}
             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter" && e.ctrlKey) {
-                    useJsonStore.getState().setAtPath(path.concat(['Основные', 'Имя кратко', 'value']), _val);
+                    useJsonStore.getState().setAtPath(path.concat(['Имя кратко', 'value']), _val);
                     (e.target as HTMLInputElement).blur();
                 }
             }}
@@ -220,6 +292,8 @@ const DefaultHeader = (props: CallbackParams) => {
     const isSceneItem = isChildOf(strPath, 'сюжетная-арка') && deep == 3;
     const isPlotArc = isNode(strPath, 'сюжетная-арка')
     const isPlotArcItem = value?.options?.tags?.includes('plot-arc');
+    const isAllCharacters = value?.options?.tags?.includes('all-characters');
+    const isArcEventsItem = value?.options?.tags?.includes('arc-events');
 
     let isOptions = LIST_KEY_NAME[keyName];
     let name: any = isOptions ?? keyName;
@@ -254,7 +328,7 @@ const DefaultHeader = (props: CallbackParams) => {
         {isPlotArcItem && <div className="flex flex-row gap-1">
             <Tooltip text={"Количество сцен"} direction={"right"} className={clsx(
                 'text-gray-500', CONTROL_BTN)}>
-                <InputEditor
+                <InputNumberEditor
                     className={"text-center"}
                     value={value.options.quantScene}
                     doInput={(val: number) => {
@@ -269,22 +343,76 @@ const DefaultHeader = (props: CallbackParams) => {
                     arr.forEach(item => {
                         let _structScene = JSON.parse(JSON.stringify(structScene));
                         _structScene['Описание сцены'].value = item;
-                        useJsonStore.getState().mergeAtPath(path, {['Сцена-' + getID()]: _structScene})
+                        const nameScene = 'Сцена-' + getID();
+                        useJsonStore.getState().mergeAtPath(path, {[nameScene]: _structScene});
+                        useJsonStore.getState().toggleCollapse([...path, nameScene]);
+                        useJsonStore.getState().toggleCollapse([...path, nameScene, '']);
                     })
                 }
             }}/>
         </div>}
+        {isAllCharacters && <div className="flex flex-row gap-1">
+            <ButtonEx className={clsx("bi-stack w-[24px] h-[24px] text-[11px]", CONTROL_BTN)} onClick={() => {
+                let json = useJsonStore.getState().json;
+                let arr: string[] = value.value.split('\n');
+                const arrExistCharacter1 = Object.entries(json['Персонажи']['Второстепенные песонажи']).filter(([key, value]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя полное"].value)
+                const arrExistCharacter2 = Object.entries(json['Персонажи']['Второстепенные песонажи']).filter(([key, value]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
+                const arrExistCharacter = [...arrExistCharacter1, ...arrExistCharacter2];
+
+                if (Array.isArray(arr)) {
+                    arr = arr.filter(characterDesc => {
+                        const charDesc = characterDesc.toLocaleLowerCase();
+                        const character = JSON.parse(JSON.stringify(minorCharacter));
+                        character['Общее описание'].value = characterDesc;
+
+                        if (charDesc.includes('главный герой')) {
+                            console.log('1)' + charDesc);
+                            if (json['Персонажи']['Главный герой']['Общее описание'].value) return;
+                            useJsonStore.getState().mergeAtPath(['Персонажи', 'Главный герой', 'Общее описание'], {value: character})
+                        } else if (charDesc.includes('антогонист')) {
+                            console.log('2)' + charDesc);
+                            if (json['Персонажи']['Антогонист']['Общее описание'].value) return;
+                            useJsonStore.getState().mergeAtPath(['Персонажи', 'Антогонист', 'Общее описание'], {value: character})
+                        } else {
+
+                            const isExist = arrExistCharacter.some(simpleName => {
+                                const arrNameIt = simpleName.toLocaleString().split(',').map((it: string) => it.toLocaleLowerCase().trim());
+                                return arrNameIt.some((name: string) => {
+                                    return charDesc.substring(0, charDesc.search(/\s.\s/)).includes(name);
+                                })
+                            })
+                            if (isExist) return;
+
+                            useJsonStore.getState().mergeAtPath(['Персонажи', 'Второстепенные песонажи'], {['Персонаж-' + getID()]: character})
+                        }
+                    })
+                    useJsonStore.getState().mergeAtPath(['Персонажи', 'Все персонажи'], {value: arr.join('\n')});
+                }
+            }}/>
+        </div>}
+        {isArcEventsItem && <div className="flex flex-row gap-1">
+            <Tooltip text={"Количество событий на сцене"} direction={"right"} className={clsx(
+                'text-gray-500', CONTROL_BTN)}>
+                <InputNumberEditor
+                    className={"text-center"}
+                    value={value.options.quantEvents}
+                    doInput={(val: number) => {
+                        if (isNaN(val)) val = 3;
+                        toWrite(val, [...path, 'options', 'quantEvents']);
+                    }}
+                />
+            </Tooltip>
+        </div>}
     </>;
 };
+let total = 0;
 const GPTHeader = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
-
-    const [total, setTotal] = useState(0);
 
     useEffect(() => {
         eventBus.addEventListener('message-socket', ({type, data}) => {
             if (type == 'gpt-progress-rewrite') {
-                const numb = data.split('value').length - 1
+                const numb = data.split('target').length - 1
                 const prc = numb / total * 100;
                 if (!Number.isFinite(prc)) return;
                 eventBus.dispatchEvent('message-local', {type: 'progress', data: numb / total * 100})
@@ -292,11 +420,10 @@ const GPTHeader = (props: CallbackParams) => {
         });
     }, []);
 
-    const handleTextGPT = useCallback(async (
-        text: string,
-        fnPrompt: { requirements: string, example?: string },
-        path: any[],
-        toWrite: { (value: any, p?: any[]): void }) => {
+    const handleTextGPT = useCallback(async (text: string, fnPrompt: {
+        requirements: string,
+        example?: string
+    }, path: any[]) => {
 
         let source = {};
         let target = JSON.parse(JSON.stringify(text));
@@ -307,12 +434,26 @@ const GPTHeader = (props: CallbackParams) => {
         target.example = fnPrompt?.example ?? '';
         target.value = '';
 
-        let promptRequirements = template(
-            fnPrompt?.requirements ?? '',
-            {
-                halfWords: Math.trunc(countWords * .5),
-                x2Words: countWords * 2,
-            });
+        const src = useJsonStore.getState().json;
+
+        let obj: { [x: string]: any; }, key: string | number;
+        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Жанр', 'value'])
+        const genre = obj[key];
+        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Общее настроение', 'value'])
+        const mood = obj[key];
+        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Эпоха', 'value'])
+        const age = obj[key];
+        [obj, key] = getObjectByPath(src, ['Общие', 'Основные', 'Возраст аудитории', 'value'])
+        const ageLimit = obj[key];
+
+        let promptRequirements = template(fnPrompt?.requirements ?? '', {
+            halfWords: Math.trunc(countWords * .5),
+            x2Words: countWords * 2,
+            genre,
+            mood,
+            age,
+            ageLimit,
+        });
         target.requirements = promptRequirements + ' ' + _value
 
         source = target;
@@ -324,6 +465,8 @@ const GPTHeader = (props: CallbackParams) => {
                 const id = generateUID();
                 listPathSrc[id] = [...path, ...arrPath, 'value'];
                 value.id = id;
+                value.target = '';
+                delete value.value;
 
                 if (value?.hasOwnProperty('options')) { // Подстановка значений
                     const strValue = JSON.stringify(value);
@@ -336,45 +479,48 @@ const GPTHeader = (props: CallbackParams) => {
         });
 
         source = deleteFields(source, ['options']);
-        setTotal(Object.keys(listPathSrc).length);
+        total = Object.keys(listPathSrc).length;
 
-        let resultStruct = await toGPT({prompt: promptWrite, source, path: path.join('.')});
+        let resultStruct = await toGPT(promptWrite, {source, path: path.join('.')});
 
-        setTotal(0);
+        total = 0;
         eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
 
-        walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
-            if (value?.hasOwnProperty('id')) {
-                const id = value.id;
-                let val = value.value.replaceAll(/\n\n/g, '\n');
-                const path = listPathSrc[id];
-                if (typeof val == 'string')
-                    toWrite(val, path)
-                else
-                    console.error('Тип результата не соответствует', val);
-            }
-            return value;
-        });
+        applyGPTResult(resultStruct, listPathSrc);
 
     }, []);
 
     const generateTextGPT = useCallback(async () => {
 
-        let source = JSON.parse(JSON.stringify(useJsonStore.getState().json));
-        source = prepareStructure(source);
+        let json = useJsonStore.getState().json;
+        let source = JSON.parse(JSON.stringify(json));
+        source = prepareStructureFirst(source);
 
         let target = JSON.parse(JSON.stringify(value));
+
+        let numberValue = 0;
+        walkAndFilter(target, ({value}) => {
+            if (value?.hasOwnProperty('value')) numberValue++;
+            return value;
+        });
+
+        if (numberValue == 1) target = walkAndFilter(target, ({value}) => {
+            if (value?.hasOwnProperty('value')) value.value = '';
+            return value;
+        });
 
         const [obj, key] = getObjectByPath(source, path as string[]);
         obj[key] = target;
 
         const listPathSrc = {};
-        source = walkAndFilter(source, ({parent, key, value, hasChild, arrPath}) => {
+        source = walkAndFilter(source, ({value, arrPath}) => {
             if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
 
                 const id = generateUID();
                 listPathSrc[id] = [...arrPath, 'value'];
                 value.id = id;
+                value.target = '';
+                delete value.value;
 
                 if (value?.hasOwnProperty('options')) { // Подстановка значений
                     const strValue = JSON.stringify(value);
@@ -386,58 +532,60 @@ const GPTHeader = (props: CallbackParams) => {
             return value;
         });
 
-        source = deleteFields(source, ['options']);
-        setTotal(Object.keys(listPathSrc).length);
+        source = prepareStructureSecond(source);
 
-        source.uid = Date.now();
-        let resultStruct = await toGPT({prompt: promptWrite, source, path: path.join('.')});
+        total = Object.keys(listPathSrc).length;
 
-        setTotal(0);
+        let resultStruct = await toGPT(
+            promptWrite,
+            {
+                source: JSON.stringify(source, null, 2),
+                path: '["' + path.join('"."') + '"]'
+            });
+
+        total = 0;
         eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
 
-        walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
-            if (value?.hasOwnProperty('id')) {
-                const id = value.id;
-                let val = value.value.replaceAll(/\n\n/g, '\n');
-                const path = listPathSrc[id];
-                if (typeof val == 'string')
-                    toWrite(val, path)
-                else
-                    console.error('Тип результата не соответствует', val);
-
-            }
-            return value;
-        });
+        applyGPTResult(resultStruct, listPathSrc);
 
     }, []);
 
     const {
-        addEvil, addKindness, addNegative, addPositive, collapseText, expandText, inverseText
+        addEvil, addKindness, addNegative, addPositive, collapseText, expandText, inverseText, addActions, addImprove
     } = fnPromptTextHandling;
 
+    const isValue = value?.hasOwnProperty('value') && typeof value.value !== "object";
+
     return <>
-        <DropdownButton title={<div className="bi-star"/>} className={'px-1 ' + CONTROL_BTN} isChevron={false}>
-            <div className={clsx(
-                'flex flex-col bg-white gap-0.5',
-                'outline-1 outline-gray-200 rounded-[5px] p-2'
-            )}>
-                <ButtonEx className={clsx('bi-stars w-[24px] h-[24px]')} onAction={() => generateTextGPT()}/>
-                <ButtonEx className={clsx('bi-sun w-[24px] h-[24px]')}
-                          onAction={() => handleTextGPT(value, addKindness, path, toWrite)}/>
-                <ButtonEx className={clsx('bi-cloud-rain w-[24px] h-[24px]')}
-                          onAction={() => handleTextGPT(value, addEvil, path, toWrite)}/>
-                <ButtonEx className={clsx('bi-emoji-smile w-[24px] h-[24px]')}
-                          onAction={() => handleTextGPT(value, addPositive, path, toWrite)}/>
-                <ButtonEx className={clsx('bi-emoji-frown w-[24px] h-[24px]')}
-                          onAction={() => handleTextGPT(value, addNegative, path, toWrite)}/>
-                <ButtonEx className={clsx('bi-arrows-fullscreen w-[24px] h-[24px]')}
-                          onAction={() => handleTextGPT(value, expandText, path, toWrite)}/>
-                <ButtonEx className={clsx('bi-arrows-collapse-vertical w-[24px] h-[24px]')}
-                          onAction={() => handleTextGPT(value, collapseText, path, toWrite)}/>
-                <ButtonEx className={clsx('bi-circle-half w-[24px] h-[24px]')}
-                          onAction={() => handleTextGPT(value, inverseText, path, toWrite)}/>
-            </div>
-        </DropdownButton>
+        <ButtonEx className={clsx('bi-stars w-[24px] h-[24px]', CONTROL_BTN)}
+                  onAction={() => generateTextGPT()} title="Генерация"/>
+        {isValue &&
+            <DropdownButton title={<div className="bi-three-dots-vertical"/>} className={'px-1 ' + CONTROL_BTN}
+                            isChevron={false}>
+                <div className={clsx(
+                    'flex flex-col bg-white gap-0.5',
+                    'outline-1 outline-gray-200 rounded-[5px] p-2'
+                )}>
+                    <ButtonEx className={clsx('bi-sun w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, addKindness, path)} title={addKindness.desc}/>
+                    <ButtonEx className={clsx('bi-cloud-rain w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, addEvil, path)} title={addEvil.desc}/>
+                    <ButtonEx className={clsx('bi-emoji-smile w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, addPositive, path)} title={addPositive.desc}/>
+                    <ButtonEx className={clsx('bi-emoji-frown w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, addNegative, path)} title={addNegative.desc}/>
+                    <ButtonEx className={clsx('bi-arrows-fullscreen w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, expandText, path)} title={expandText.desc}/>
+                    <ButtonEx className={clsx('bi-arrows-collapse-vertical w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, collapseText, path)} title={collapseText.desc}/>
+                    <ButtonEx className={clsx('bi-circle-half w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, inverseText, path)} title={inverseText.desc}/>
+                    <ButtonEx className={clsx('bi-lightning w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, addActions, path)} title={addActions.desc}/>
+                    <ButtonEx className={clsx('bi-check-all w-[24px] h-[24px]')}
+                              onAction={() => handleTextGPT(value, addImprove, path)} title={addImprove.desc}/>
+                </div>
+            </DropdownButton>}
     </>
 };
 
@@ -449,6 +597,9 @@ export const StoryEditor: React.FC = () => {
         json: s.json,
         toggleCollapse: s.toggleCollapse,
     })));
+
+    // @ts-ignore
+    window.store = useJsonStore.getState()
 
     const clbEditorValue: Clb = (props) => {
         const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
@@ -486,7 +637,7 @@ export const StoryEditor: React.FC = () => {
         const isToggle = !options?.excludes?.includes('toggle') && Object.keys(value).filter(it => !SET_OPTIONS.includes(it)).length > 0;
 
         const isCharacterHeader = (isChildOf(strPath, 'персонажи.второстепенные-песонажи') && options?.tags == 'character');
-        const isSceneHeader = (isChildOf(strPath, 'сюжетная-арка') && options?.tags == 'scene');
+        const isSceneHeader = (isChildOf(strPath, 'сюжетная-арка') && options?.tags?.includes('scene'));
         const isDefaultHeader = !isCharacterHeader;
 
         let isOptions = LIST_KEY_NAME[keyName];
@@ -510,23 +661,14 @@ export const StoryEditor: React.FC = () => {
             {isDefaultHeader && <DefaultHeader {...props}/>}
 
             {!isOptions && <GPTHeader {...props}/>}
-            <DropdownButton title={<div className="bi-three-dots-vertical"/>} className={CONTROL_BTN} isChevron={false}
-            >
-                <div className={clsx(
-                    'flex flex-col bg-white gap-0.5',
-                    'outline-1 outline-gray-200 rounded-[5px] p-2'
-                )}>
-                    {!isOptions && <ButtonEx // Кнопка очистить поля
-                        className={clsx("bi-eraser-fill w-[24px] h-[24px] hover:!bg-sky-600 hover:text-white transition", CONTROL_BTN)}
-                        description="Очистить"
-                        onConfirm={() => walkAndFilter(value, ({key, value, arrPath}) => {
-                            key == 'value' && useJsonStore.getState().setAtPath(path.concat(arrPath), '');
-                            return value;
-                        })}/>
-                    }
-                </div>
-            </DropdownButton>
-            {!isOptions && <div className="justify-items-end flex-1">
+            {!isOptions && <div className="flex flex-row flex-1 justify-end">
+                <ButtonEx // Кнопка очистить поля
+                    className={clsx("bi-eraser-fill w-[24px] h-[24px] hover:!bg-sky-600 hover:text-white transition", CONTROL_BTN)}
+                    description="Очистить"
+                    onConfirm={() => walkAndFilter(value, ({key, value, arrPath}) => {
+                        key == 'value' && useJsonStore.getState().setAtPath(path.concat(arrPath), '');
+                        return value;
+                    })}/>
                 <ButtonEx className={clsx(
                     value?.options?.forcedIncludes ? 'bi-gear-fill' : 'bi-gear',
                     'w-[24px] h-[24px]',
@@ -536,7 +678,6 @@ export const StoryEditor: React.FC = () => {
                     change(_path, value?.options?.forcedIncludes ? '' : SET_OPTIONS);
                 }}/>
             </div>}
-            {/*<ButtonEx className="bi-x-lg w-[24px] h-[24px]" description="Удалить" onConfirm={() => remove(path)}/>*/}
         </div>
     }
 
@@ -589,159 +730,16 @@ export const StoryEditor: React.FC = () => {
             <div className="mb-3 flex gap-2">
                 <button
                     className="px-3 py-1 border rounded"
-                    onClick={() => reset()}
+                    onClick={() => {
+                        change([], structPlot);
+                    }}
                 >
                     Reset store
                 </button>
                 <button
                     className="px-3 py-1 border rounded"
                     onClick={() => {
-                        const arr = [
-
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Название",
-                                    "value"
-                                ],
-                                "Город в облаках"
-                            ],
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Жанр",
-                                    "value"
-                                ],
-                                "Приключения, путешествия, детектив"
-                            ],
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Общее настроение",
-                                    "value"
-                                ],
-                                "Авантюрное, веселое"
-                            ],
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Эпоха",
-                                    "value"
-                                ],
-                                "20 век 30е годы"
-                            ],
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Возраст аудитории",
-                                    "value"
-                                ],
-                                "Для всех, от детей до взрослых"
-                            ],
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Ключевые вопросы",
-                                    "value"
-                                ],
-                                "Дружба, веверность, следование целям, способность пожертвовать собой ради других"
-                            ],
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Основные противоречия",
-                                    "value"
-                                ],
-                                "Преодаление трудностей на пути к заветной цели, борьба с врагом в лице главного злодя, помощь и спасение нуждающихся"
-                            ],
-                            [
-                                [
-                                    "Общие",
-                                    "Основные",
-                                    "Образы символы",
-                                    "value"
-                                ],
-                                "Путешествие как метафора личного роста и преодоления; дороги и тропы как выбор пути героя; погоня как символ стремления к цели и отчаянного бегства."
-                            ]
-
-                            // [
-                            //     ["Общие", "Основные", "Общее настроение", "value"],
-                            //     "драматический"
-                            // ],
-                            // [
-                            //     ["Общие", "Сюжет кратко", "Экспозиция", "value"],
-                            //     "Ветеран афганской войны, Сергей Князев, вернулся домой. Шел 1989 год — поздний ссср. Жизнь его идет на перекосяк, в стране разруха и расцветает бандитизм. Родители умерли и оставив Сергею квартиру, но бандиты ловко подделав документы, переписали квартиру на подставное лицо, Так Сергей оказывается на улице. Не долгие скитания по подъздам, приводят его на старый заброшенный склад, где он в скоре \"встревает\" в бандитские разборки."
-                            // ],
-                            // [
-                            //     ["Общие", "Сюжет кратко", "Завязка", "value"],
-                            //     "Негодяи истезают молодую девушку, требуя отдать долги её покойного мужа. Сергей не выдерживает и пытается востановить справедливость, (ведь он и сам пострадал от бандитского произвола). Но видмо судьба и в этот раз отворачивается от него и Сергея убивают. \nРазум и душа Сергея перемещаются в магический мир стредневековья, в тело молодого воришки, который только что стащил древний магический артефакт, но владелец артефакта настиг воришку и ударил заклятьем. Заклятьем, которое попав в украденый артефакт разрушило его и попутно прикончило незадачливого воришку, освободив тело для Сергея и давая ему второй шанс. Сергей после перемещения не сразу приходит в себя, но после обнаруживает у себя магические способности (позже по сюжету выяснится, что это произошло из-за того, что в момент смерти, магический удар попал по артефакту и странным образом магические сопосбности артефакта передались Сергею в новом теле)"
-                            // ],
-                            // [
-                            //     ["Общие", "Сюжет кратко", "Развитие действия", "value"],
-                            //     "Очнувшись в незнакомом теле, Сергей постепенно осознает произошедшее. Он понимает, что находится в другом мире, где магия – реальность, а его новое тело обладает скрытым потенциалом. Первые дни он пытается выжить в трущобах города, используя воровские навыки своего предшественника. Параллельно он изучает свои новые способности, которые упешно использует врешении постоянно возникающих проблем. \nВскоре Сергей случайно переходит дорогу могущественным силам, которые решают покончить с ним. Ему приходится выбирать между тем, чтобы скрываться и выживать в одиночку, или же принять свою новую судьбу и попытаться разобраться в происходящем, попутно раскрывая тайны своего прошлого и артефакта, который изменил его жизнь. На пути ему встречаются как враги, так и союзники, каждый из которых преследует свои цели. Бандиты, магические кланы, инквизиторы и простолюдины - все они оказываются втянуты в паутину интриг, центром которой становится Сергей."
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Имя кратко", "value"],
-                            //     "Князь"
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Имя полное", "value"],
-                            //     "Сергей Князев, Серёга, Князь, Князь-младший"
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Возраст", "value"],
-                            //     "Около 30 лет (в мире средневековья - 20 лет)"
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Цели", "value"],
-                            //     "Выжить в новом мире, разобраться в произошедшем, обрести справедливость"
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Жизненная ситуация", "value"],
-                            //     "Вор в трущобах, беглец, невольный участник политических интриг"
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Прошлое", "value"],
-                            //     "Сергей Князев – ветеран Афганской войны, человек, видевший смерть и предательство. Вернувшись в мирную жизнь, он столкнулся с еще большей несправедливостью: потерей жилья из-за бандитского произвола и равнодушия системы. Опыт войны закалил его, научил выживать и бороться до конца, но вместе с тем оставил глубокие шрамы на душе. Он циничен, немногословен и не склонен доверять людям, но в глубине души сохранил стремление к справедливости и готовность защищать слабых. Предательство тех, кому он верил, сделало его осторожным и подозрительным, но не сломило его волю к жизни."
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Отношения", "value"],
-                            //     "Пока одинок, но постепенно обзаводится союзниками и врагами"
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Интеллект и творчество", "value"],
-                            //     "Сообразителен, быстро учится, обладает стратегическим мышлением, проявляет смекалку в критических ситуациях. Скрытый магический потенциал."
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Скрытые цели", "value"],
-                            //     "Найти способ вернуться домой или обрести новый дом, отомстить виновным в его бедах (как в прошлом, так и в настоящем)"
-                            // ],
-                            // [
-                            //     ["Персонажи", "Главный герой", "Основные", "Мораль", "value"],
-                            //     "Стремится к справедливости, но не чужд компромиссам и использованию сомнительных методов ради достижения цели. Готов помогать слабым и защищать невинных."
-                            // ],
-                            // [
-                            //     ["Сюжетная арка", "Экспозиция", "value"],
-                            //     "1. Москва, 1989 год. Сергей Князев, одетый в поношенную дембельскую форму, с трудом пробирается через толпу на вокзале. В руках у него видавший виды армейский вещмешок. Он ищет глазами встречающих, но никого не находит. Чувство одиночества накрывает его с головой. (1 час).\n2. Квартира Князева. Сергей стоит посреди пустой, обшарпанной квартиры. Обстановка убогая: старый диван, продавленный посередине, стол, покрытый клеенкой, и пара стульев. На стенах обои в цветочек давно выцвели. Он пытается найти хоть какие-то следы родителей, но находит лишь пыль и запустение. Слышен шум из-за стены – пьяная ругань соседей. (2 часа).\n3. Улица. Сергей бесцельно бродит по улицам города, пытаясь найти работу. Заходит в несколько мест, но везде получает отказ. Возле комиссионного магазина он замечает группу подозрительных личностей, о чем-то оживленно беседующих. Один из них, по кличке Шрам, бросает на Сергея презрительный взгляд. (4 часа).\n4. Заброшенный склад. Сергей устраивается на ночлег в заброшенном складе. В углу, на грязном матрасе, спит местный бомж по прозвищу Филин. Тот ворчливо оглядывает Князя, но ничего не говорит. Ночью Сергей просыпается от странных звуков – приглушенные голоса и лязг металла. Он осторожно выглядывает из-за укрытия и видит, как несколько бандитов пытают молодого мужчину, требуя деньги."
-                            // ]
-                        ]
-
-                        const _json = JSON.parse(JSON.stringify(structPlot));
-
-                        arr.forEach(([path, value]) => {
-                            const [obj, key] = getObjectByPath(_json, path as string[]);
-                            obj[key] = value;
-                        })
-                        change([], _json);
-                        // console.log(_json)
-
+                        change([], data);
                     }}
                 >
                     load
@@ -749,17 +747,7 @@ export const StoryEditor: React.FC = () => {
                 <button
                     className="px-3 py-1 border rounded"
                     onClick={() => {
-
-                        const arr = [];
-                        walkAndFilter(useJsonStore.getState().json,
-                            ({parent, key, value, hasChild, arrPath}) => {
-
-                                if (!hasChild && key == 'value' && value) arr.push([arrPath, value]);
-
-                                return value;
-                            })
-
-                        console.log(arr)
+                        console.log(useJsonStore.getState().json)
                     }}
                 >
                     save
@@ -813,10 +801,10 @@ export const StoryEditor: React.FC = () => {
                 >
                     exp
                 </button>
+                <ImageUploadBase64/>
             </div>
 
             <JSONTreeEditor
-                jsonData={structPlot}
                 clbEditorValue={clbEditorValue}
                 clbContainer={clbContainer}
                 clbHeader={clbHeader}

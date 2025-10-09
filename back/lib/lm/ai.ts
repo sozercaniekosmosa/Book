@@ -4,6 +4,7 @@ import {readFileAsync, writeFileAsync} from "../filesystem.js";
 import OpenAI from "openai";
 import {config} from "dotenv";
 import glob from "../../../front/src/glob.js";
+import { generateUID } from "../utils.js";
 
 const {parsed} = config();
 const {FOLDER_ID, OAUTH_TOKEN, ARLIAI_API_KEY, MISTRAL_API_KEY} = parsed;
@@ -51,12 +52,74 @@ export async function arliGPT(prompt, text, arliai_api_key) {
     }
 }
 
+export async function getImageOpenAPI(system: string, user: string, progressID: string, api_key: string) {
+
+    try {
+        const openai = new OpenAI({
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKey: api_key,
+        });
+
+        const model = "google/gemini-2.5-flash-image-preview"
+
+        const response = await openai.chat.completions.create({
+            model,
+            messages: system && user ? [
+                {role: "system", content: system},
+                {role: "user", content: user}
+            ] : [
+                {role: "user", content: system ?? user}
+            ],
+            stream: true, // в потоке
+
+            // temperature: .5, // В диапазоне от 0 до 2 (по умолчанию – 1.0). Более высокое значение делает ответы более креативными и непредсказуемыми, низкое — более детерминированными
+            // top_p: 0.95, // От 0 до 1.0 (по умолчанию — 0.95). Альтернатива температуре: регулировка разнообразия текста
+            // n: 1,
+            // frequency_penalty: 1, // от -2.0 до 2.0, штраф за повторяемость слов
+            // presence_penalty: 1.5, // от -2.0 до 2.0, поощрение упоминания новых тем
+
+            // response_format: {"type": "json_object"},
+        });
+
+
+        // const result = response.choices[0].message.content;
+        let result = '';
+        for await (const chunk of response) {
+            const part: string | null = chunk.choices[0].delta?.content ?? null;
+            result += part;
+            glob.ws && (glob.ws as WebSocket).send(JSON.stringify({
+                type: 'gpt-progress' + (progressID ? '-' + progressID : ''),
+                data: result
+            }));
+        }
+
+        // console.log(result);
+        return result.startsWith('\`\`\`json') ? result.substring(7, result.length - 4) : result;
+
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('Axios error:', error.response?.data || error.message);
+        } else {
+            console.error('Unexpected error:', error);
+        }
+        throw error;
+    }
+}
+
 export async function OpenAPI(system: string, user: string, progressID: string, api_key: string) {
 
     try {
         const openai = new OpenAI({
             baseURL: "https://openrouter.ai/api/v1",
             apiKey: api_key,
+            // defaultHeaders: {
+            //     'X-Title': 'Book',
+            //     'HTTP-Referer': 'google-vertex', // или 'google-ai-studio'
+            // },
+            defaultHeaders: {
+                'HTTP-Referer': 'agent-' + generateUID(), // Your app's URL
+                'X-Title': 'id-' + generateUID(),
+            },
         });
 
         // плохие
@@ -65,28 +128,9 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
         // const model = "qwen/qwq-32b"//..s
 
         // тестим
-        // const model = "google/gemini-2.0-flash-001"//..s
-        const model = "google/gemini-2.5-flash-lite"//..s
-
-        // const model = "x-ai/grok-4-fast"//..s
-        // const model = "google/gemma-3-27b-it:free"//..s
-        // const model = "google/gemini-2.0-flash-exp:free"//..s
-
-        // bothub
-        // const model = 'gemini-2.0-flash-001'//9s
-        // const model = 'gpt-4.1-nano'//14s
-
-        // model: 'deepseek-chat', //42s
-        // model: 'grok-3-mini-beta',//19s
-        // model: 'gpt-4o-mini',//27s
-        // model: 'gpt-4.1-mini',//28s
-
-        // >100
-        // const model = 'o1-mini'//11s
-        // const model = 'o3-mini'//41s
-        // const model = 'o4-mini'//27s
-        // const model = 'gpt-4.1'//21s
-        // const model = 'gpt-4o-search-preview'//21s
+        const model = "google/gemini-2.0-flash-001"//..s
+        // const model = "google/gemini-2.5-flash-lite-preview-09-2025"//..s
+        // const model = "google/gemini-2.5-flash-lite"//..s
 
         console.log(model);
 
@@ -98,6 +142,13 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
             ] : [
                 {role: "user", content: system ?? user}
             ],
+
+            // extra_body: {
+            //     provider: {
+            //         only: ["google-vertex"] // Явно указываем использовать только Google Vertex AI
+            //     }
+            // },
+
             stream: true, // в потоке
 
             // temperature: .5, // В диапазоне от 0 до 2 (по умолчанию – 1.0). Более высокое значение делает ответы более креативными и непредсказуемыми, низкое — более детерминированными

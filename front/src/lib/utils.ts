@@ -1,3 +1,5 @@
+import {keyColumn} from "react-datasheet-grid";
+
 const base64Language = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const toShortString = (value, language = base64Language) => {
     const len = language.length;
@@ -188,13 +190,17 @@ export const arrMoveItem = (arr, fromIndex, toIndex) => {
  * @param obj - объект
  * @param arrPath - ['key1', 'key2', 'key3', ... ]
  */
-export const getObjectByPath = (obj: any, arrPath: string[]): [any, string] => {
+export const getObjectByPath = (obj: any, arrPath: string[], clbEmpty?: (obj: any, key: string, indexPath: number) => void): [any, string] => {
     for (let i = 0; i < arrPath.length - 1; i++) {
         const k = arrPath[i];
         if (obj?.[k]) {
             obj = obj[k];
         } else {
-            return [null, null];
+            if (clbEmpty) {
+                clbEmpty(obj, k, i);
+                obj = obj[k];
+            } else
+                return [null, null];
         }
     }
     return [obj, arrPath[arrPath.length - 1]];

@@ -14,7 +14,7 @@ import glob from "../front/src/glob";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const env = config({override: true, path: '../.env'});
+const env = config({override: true, path: './.env'});
 const {
     PORT,
     WEB_DIR,

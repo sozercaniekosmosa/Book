@@ -33,10 +33,10 @@ export const handleValue = (value: string) => {
 //     arrDifference.length && console.log(...arrDifference);
 // }
 
-async function callGPT({system, user = null, progressID = null}) {
+async function callGPT({system, user = null, progressID = null, method = 'gpt'}) {
     // textContent = glob.selectedText ?? textContent;
     try {
-        const {data: text} = await axios.post(glob.hostAPI + 'gpt', {
+        const {data: text} = await axios.post(glob.hostAPI + method, {
             user,
             system,
             progressID
@@ -49,61 +49,19 @@ async function callGPT({system, user = null, progressID = null}) {
     }
 }
 
-export const toGPT3 = async ({prompt, source, result, iProp, promptRequirements}) => {
-    let countWords: number;
+export const toGPT = async (prompt:string, param) => {
 
-    // const arrStruct = arrMapProp.map(({section, desc, value, example, variants, requirements}, index) => {
-    //     if (section) return false;
-    //     let mapProp: IMapProp = {desc, value};
-    //
-    //     variants && (mapProp.variants = variants);
-    //     requirements && (mapProp.requirements = requirements); // Если requirements существует
-    //
-    //     if (promptRequirements && iProp === index) {
-    //         if (promptRequirements && value) {
-    //             const _value = handleValue(value);
-    //             mapProp.requirements =
-    //                 promptRequirements + ' ' +
-    //                 '('+_value+')' + // Добвляем текущее значение value в промпт
-    //                 (_value.endsWith('.') ? '' : '.') + // Если в конце '.' есть то не добавляем
-    //                 (mapProp.requirements ?? '');
-    //         }
-    //
-    //         mapProp.value = '';
-    //         countWords = handleValue(value).split(' ').length; // Посчитаем слова
-    //     }
-    //
-    //     return mapProp;
-    // }).filter(it => it)
-    //
-    const strSource = JSON.stringify(source, null, 2)
-    const strResult = JSON.stringify(result, null, 2)
-
-    // console.log(strSource);
-
-    const promptBuild = template(prompt, {
-        source: strSource,
-        result: strResult,
-        // halfWords: Math.trunc(countWords * .5),
-        // x2Words: countWords * 2,
-    });
-
-    // console.log(strSource);
-
+    const promptBuild = template(prompt, {...param});
     const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite'});
 
     return typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;
 
 }
-
-export const toGPT = async ({prompt, source, path}) => {
+export const toImageGenerate = async ({prompt, source, path}) => {
     const strSource = JSON.stringify(source, null, 2)
 
-    const promptBuild = template(prompt, {struct: strSource, path});
-
-    console.log(promptBuild);
-
-    const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite'});
+    const promptBuild = template(prompt, {source: strSource, path});
+    const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite', method: 'image'});
 
     return typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;
 

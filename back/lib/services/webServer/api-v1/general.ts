@@ -4,7 +4,7 @@ import axios from "axios";
 import {isAllowHostPort} from "../../webUtils";
 import {removeFile, saveTextToFile} from "../../../filesystem";
 import glob from "../../../../../front/src/glob";
-import {OpenAPI, mistralGPT} from "../../../lm/ai";
+import {OpenAPI, mistralGPT, getImageOpenAPI} from "../../../lm/ai";
 import {config} from "dotenv";
 
 const {parsed: {FOLDER_ID, OAUTH_TOKEN, ARLIAI_API_KEY, BOTHUB_API_KEY, OPENROUTER_API_KEY}} = config();
@@ -75,6 +75,18 @@ routerGeneral.post('/gpt', async (req, res) => {
     let textGPT = '';
     try {
         textGPT = await OpenAPI(system, user, progressID, OPENROUTER_API_KEY);
+
+        res.status(200).send(textGPT);
+    } catch (error) {
+        console.log(error)
+        res.status(error.status || 500).send({error: error?.message || error},);
+    }
+});
+routerGeneral.post('/image', async (req, res) => {
+    const {body: {id, type, user, system, progressID}} = req;
+    let textGPT = '';
+    try {
+        textGPT = await getImageOpenAPI(system, user, progressID, OPENROUTER_API_KEY);
 
         res.status(200).send(textGPT);
     } catch (error) {

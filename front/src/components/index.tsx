@@ -8,7 +8,6 @@ import {Tab, Tabs} from './Auxiliary/Tabs.tsx';
 import {ERR, LOG, OK, WARN} from "./PopupMessage/PopupMessage.tsx";
 import Group from "./Auxiliary/Group.tsx";
 import {StoryEditor} from "./Book/BookStory.tsx";
-import {useJsonStore} from "./Book/JSONTreeEditor.tsx";
 
 function Index() {
     const [progress, setProgress] = useState(0)
@@ -23,7 +22,9 @@ function Index() {
         };
 
         const localHandler = (({type, data}) => {
-            if (type === 'progress') setProgress(data)
+            if (type === 'progress') {
+                setProgress(parseInt(data))
+            }
         });
 
         // @ts-ignore
