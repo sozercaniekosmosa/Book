@@ -218,11 +218,6 @@ const General = (props: CallbackParams) => {
     let name: string = isOptions ?? keyName;
 
     if (isAllCharacters) {
-
-        // Object.entries(listPlotModifiers).forEach(([key, modifier]) => {
-        //     console.log(listPlotModifiers[key])
-        // })
-
         return <>
             <div className="text-nowrap">{name}</div>
             {Object.entries(listPlotModifiers as PlotModifiers).map(([key, type], i) => {
@@ -237,7 +232,7 @@ const General = (props: CallbackParams) => {
                             {Object.entries(type as ItemPlotModifier).map(([key, modifier], i) => {
                                 return (
                                     <DropdownButton key={i} title={key + ': ' + (listSelected?.[key]?.value ?? '...')}
-                                                    className={clsx(listSelected?.[key] ? 'font-bold' : '')}
+                                                    className={clsx(listSelected?.[key] ? 'bg-gray-200 text-gray-900' : 'text-gray-500')}
                                     >
                                         <div className={clsx(
                                             'flex flex-col bg-white gap-0.5',
@@ -252,7 +247,7 @@ const General = (props: CallbackParams) => {
                                                 })}>
                                                 &nbsp;
                                             </ButtonEx>
-                                            {modifier.arrModifiers.map((value, i) => {
+                                            {modifier.arrModifiers.map((value: string, i: React.Key) => {
                                                 return (
                                                     <ButtonEx
                                                         key={i} className="justify-start"
@@ -272,29 +267,8 @@ const General = (props: CallbackParams) => {
             })}
             <div>
                 <ButtonEx onClick={() => {
-                    const list = {
-                        'Добавить персонажа': 'Сущности',
-                        'Трансформировать персонажа': 'Сущности',
-                        'Удалить персонажа': 'Сущности',
-                        'Добавить помеху': 'События',
-                        'Добавить возможность': 'События',
-                        'Случайный вброс': 'События',
-                        'Сменить локацию': 'Среда',
-                        'Модифицировать окружение': 'Среда',
-                        'Сделать тон мрачнее/светлее': 'Эмоция/Атмосфера',
-                        'Эмоциональный удар': 'Эмоция/Атмосфера',
-                        'Предвестие': 'Структурные',
-                        'Флэшбэк': 'Структурные',
-                        'Смена перспективы': 'Структурные',
-                        'Темп/ритм': 'Структурные',
-                        'Назначить цель': 'Мета',
-                        'Таймер/ресурсный лимит': 'Мета',
-                        'Этический выбор': 'Мета',
-                    }
-
                     const res: Record<string, string> = {desc: '', example: '', requirements: ''};
-                    Object.entries(listSelected).forEach(([key, {modifier:{desc, example, requirements}, value}]) => {
-
+                    Object.entries(listSelected).forEach(([_, {modifier: {desc, example, requirements}, value}]) => {
                         res.desc += ' ' + template(desc, {modif: value});
                         res.example += ' ' + example;
                         res.requirements += ' ' + requirements;
@@ -718,14 +692,14 @@ export const clbHeader: Clb = (props: CallbackParams) => {
                 }
                 description="Удалить"
                 onConfirm={() => useJsonStore.getState().removeAtPath(path)}/>}
-            <ButtonEx className={clsx(
+            {(value?.desc || value?.examples || value?.requirements) && <ButtonEx className={clsx(
                 value?.options?.forcedIncludes ? 'bi-gear-fill' : 'bi-gear',
                 'w-[24px] h-[24px]',
                 CONTROL_BTN,
             )} onClick={() => {
                 const _path = [...path, 'options', 'forcedIncludes'];
                 useJsonStore.getState().setAtPath(_path, value?.options?.forcedIncludes ? '' : SET_OPTIONS);
-            }}/>
+            }}/>}
         </div>}
     </div>
 }
