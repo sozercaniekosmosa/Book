@@ -95,7 +95,7 @@ function TextWrite2({
     return <textarea
         value={value}
         onKeyDown={(e) => {
-            (e.key == 'Enter') && !fitToTextSize && e.preventDefault();
+            // (e.key == 'Enter') && !fitToTextSize && e.preventDefault();
             onKeyDown && onKeyDown(e);
         }}
         onChange={(e) => onChange(e)}
@@ -103,7 +103,7 @@ function TextWrite2({
         rows={1}
         placeholder={placeholder}
         className={clsx(
-            'content-center',
+            // 'content-center',
             'overflow-hidden',
             'focus:bg-inherit st-focus st-air-tx',
             "border border-none rounded-sm w-full",

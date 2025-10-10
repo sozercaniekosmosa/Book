@@ -10,7 +10,7 @@ interface IButtonExProps extends PropsWithChildren {
     className?: string,
     onAction?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void,
     onClick?: (e?: React.MouseEvent<HTMLElement>) => void,
-    onConfirm?: (e?: React.MouseEvent<HTMLElement>) => void,
+    onConfirm?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void,
     dialogContent?: React.FC | React.ReactElement,
     disabled?: boolean,
     hidden?: boolean,
@@ -19,6 +19,7 @@ interface IButtonExProps extends PropsWithChildren {
     description?: string,
     text?: string,
     autoFocus?: boolean
+    stopPropagation?: boolean
 }
 
 const ButtonEx: FC<IButtonExProps> = ({
@@ -36,6 +37,7 @@ const ButtonEx: FC<IButtonExProps> = ({
                                           description = 'Добавьте текст...',
                                           text = '',
                                           autoFocus = false,
+                                          stopPropagation = false,
                                           ...rest
                                       }) => {
     const [_state, set_state] = useState<number | void>(0)
@@ -44,12 +46,17 @@ const ButtonEx: FC<IButtonExProps> = ({
 
     let onAct = async (e: React.MouseEvent<HTMLElement>) => {
         if (disabled) return;
-        e.preventDefault();
-        e.stopPropagation();
+        if (stopPropagation) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         onClick && onClick(e);
         if (onConfirm) {
+            let s: React.SetStateAction<number | void>;
             if (e.ctrlKey) { //если с ctrl то без подтверждения
-                onConfirm(showAndDataEvent);
+                set_state(1)
+                s = await onConfirm(showAndDataEvent);
+                setTimeout(() => set_state(s ?? 0), 500);
             } else {
                 setShowAndDataEvent(e)
             }
@@ -87,7 +94,11 @@ const ButtonEx: FC<IButtonExProps> = ({
         {onConfirm ? <Dialog
             title={description} message="Уверены?"
             show={showAndDataEvent} setShow={setShowAndDataEvent}
-            onConfirm={async () => onConfirm(showAndDataEvent)}
+            onConfirm={async () => {
+                set_state(1);
+                const s = await onConfirm(showAndDataEvent);
+                setTimeout(() => set_state(s ?? 0), 500);
+            }}
             props={{className: 'modal-sm'}}>{dialogContent}</Dialog> : ''}
     </>
 };

@@ -12,9 +12,11 @@ import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
 import {toGPT} from "./general.utils.ts";
-import {fnPromptTextHandling, promptWrite} from "./prompts.ts";
+import {fnPromptTextHandling, ItemPlotModifier, listPlotModifiers, PlotModifiers, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
+import Modal from "../Auxiliary/ModalWindow.tsx";
+import Dialog from "../Auxiliary/Dialog.tsx";
 
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
 const SET_OPTIONS = 'options desc example requirements variants';
@@ -146,7 +148,7 @@ const InputNumberEditor = ({doInput, value, className = ''}) => {
     </div>;
 };
 const SceneHeader = (props: CallbackParams) => {
-    const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
+    const {path, value} = props;
 
     const sceneName = value?.['Название кратко']?.value;
     const sceneDesc = value?.['Название кратко']?.desc;
@@ -200,8 +202,14 @@ const MinorCharacterHeader = (props: CallbackParams) => {
 };
 
 const General = (props: CallbackParams) => {
-    const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
+    const {keyName, path, value} = props;
     if (path[0] != 'Общие') return null;
+
+    const [openModal, setOpenModal] = useState(false);
+    const [openConfirm, setOpenConfirm] = useState(false);
+
+    const [_val, set_val] = useState<any>(value.value);
+    const [listSelected, setListSelected] = useState<Record<string, { value: string, modifier: ItemPlotModifier }>>({})
 
     const tags = value?.options?.tags;
     const isAllCharacters = isEqualString(tags, 'plot-short');
@@ -209,10 +217,126 @@ const General = (props: CallbackParams) => {
     let isOptions = LIST_KEY_NAME[keyName];
     let name: string = isOptions ?? keyName;
 
-    if (isAllCharacters)
+    if (isAllCharacters) {
+
+        // Object.entries(listPlotModifiers).forEach(([key, modifier]) => {
+        //     console.log(listPlotModifiers[key])
+        // })
+
+        return <>
+            <div className="text-nowrap">{name}</div>
+            {Object.entries(listPlotModifiers as PlotModifiers).map(([key, type], i) => {
+                return (
+                    <div key={i} className={
+                        clsx('-outline-offset-3 outline-1 outline-gray-200 rounded-[5px] px-2 pt-1 pb-0.5')
+                    }>
+                        <div>
+                            {key}
+                        </div>
+                        <div>
+                            {Object.entries(type as ItemPlotModifier).map(([key, modifier], i) => {
+                                return (
+                                    <DropdownButton key={i} title={key + ': ' + (listSelected?.[key]?.value ?? '...')}
+                                                    className={clsx(listSelected?.[key] ? 'font-bold' : '')}
+                                    >
+                                        <div className={clsx(
+                                            'flex flex-col bg-white gap-0.5',
+                                            'outline-1 outline-gray-200 rounded-[5px] p-2'
+                                        )}>
+                                            <ButtonEx
+                                                key={i} className="justify-start"
+                                                onClick={() => setListSelected((now) => {
+                                                    const _now = {...now};
+                                                    delete _now[key];
+                                                    return _now;
+                                                })}>
+                                                &nbsp;
+                                            </ButtonEx>
+                                            {modifier.arrModifiers.map((value, i) => {
+                                                return (
+                                                    <ButtonEx
+                                                        key={i} className="justify-start"
+                                                        onClick={() => setListSelected(() => {
+                                                            const _listSelected = {...listSelected};
+                                                            _listSelected[key] = {value, modifier}
+                                                            return _listSelected;
+                                                        })}>
+                                                        {value}
+                                                    </ButtonEx>);
+                                            })}
+                                        </div>
+                                    </DropdownButton>);
+                            })}
+                        </div>
+                    </div>)
+            })}
+            <div>
+                <ButtonEx onClick={() => {
+                    const list = {
+                        'Добавить персонажа': 'Сущности',
+                        'Трансформировать персонажа': 'Сущности',
+                        'Удалить персонажа': 'Сущности',
+                        'Добавить помеху': 'События',
+                        'Добавить возможность': 'События',
+                        'Случайный вброс': 'События',
+                        'Сменить локацию': 'Среда',
+                        'Модифицировать окружение': 'Среда',
+                        'Сделать тон мрачнее/светлее': 'Эмоция/Атмосфера',
+                        'Эмоциональный удар': 'Эмоция/Атмосфера',
+                        'Предвестие': 'Структурные',
+                        'Флэшбэк': 'Структурные',
+                        'Смена перспективы': 'Структурные',
+                        'Темп/ритм': 'Структурные',
+                        'Назначить цель': 'Мета',
+                        'Таймер/ресурсный лимит': 'Мета',
+                        'Этический выбор': 'Мета',
+                    }
+
+                    const res: Record<string, string> = {desc: '', example: '', requirements: ''};
+                    Object.entries(listSelected).forEach(([key, {modifier:{desc, example, requirements}, value}]) => {
+
+                        res.desc += ' ' + template(desc, {modif: value});
+                        res.example += ' ' + example;
+                        res.requirements += ' ' + requirements;
+                    })
+
+                    console.log(res);
+                }} text="123"/>
+            </div>
+            <ButtonEx onClick={() => setOpenModal(true)}>12</ButtonEx>
+            {openModal && <Modal show={openModal} onHide={() => setOpenConfirm(true)} autoSize={false}>
+                <Modal.Header>
+                    <Modal.Title className="text-sm">Сюжет</Modal.Title>
+                </Modal.Header>
+
+                <TextWrite
+                    className="text-black !w-[50vw] h-[40vh] overflow-y-scroll !leading-normal"
+                    value={_val}
+                    onChange={(e) => set_val(e.target.value)}
+                    onBlur={() => setOpenConfirm(true)}
+                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter" && e.ctrlKey) {
+                            useJsonStore.getState().setAtPath([...path, 'value'], _val);
+                            (e.target as HTMLInputElement).blur();
+                        }
+                    }}
+                    placeholder={value.desc}
+                />
+            </Modal>}
+            <Dialog
+                title="Сохрание" message="Уверены?"
+                show={openConfirm} setShow={setOpenConfirm}
+                onConfirm={() => {
+                    useJsonStore.getState().setAtPath([...path, 'value'], _val);
+                    setOpenModal(false);
+                }}
+                onUnconfirm={() => setOpenModal(false)}
+                props={{className: 'modal-sm'}}>
+            </Dialog>
+        </>
+    } else {
         return <div className="text-nowrap">{name}</div>;
-    else
-        return <div className="text-nowrap">{name}</div>;
+    }
 };
 const Characters = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
@@ -520,7 +644,7 @@ const GPTHeader = (props: CallbackParams) => {
 
     return <>
         <ButtonEx className={clsx('bi-stars w-[24px] h-[24px]', CONTROL_BTN)}
-                  onAction={() => generateTextGPT()} title="Генерация"/>
+                  onConfirm={() => generateTextGPT()} title="Генерация" description="Генерация"/>
         {isValue &&
             <DropdownButton title={<div className="bi-three-dots-vertical"/>} className={'px-1 ' + CONTROL_BTN}
                             isChevron={false}>
@@ -528,23 +652,23 @@ const GPTHeader = (props: CallbackParams) => {
                     'flex flex-col bg-white gap-0.5',
                     'outline-1 outline-gray-200 rounded-[5px] p-2'
                 )}>
-                    <ButtonEx className={clsx('bi-sun w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-sun w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, addKindness, path)} title={addKindness.desc}/>
-                    <ButtonEx className={clsx('bi-cloud-rain w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-cloud-rain w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, addEvil, path)} title={addEvil.desc}/>
-                    <ButtonEx className={clsx('bi-emoji-smile w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-emoji-smile w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, addPositive, path)} title={addPositive.desc}/>
-                    <ButtonEx className={clsx('bi-emoji-frown w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-emoji-frown w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, addNegative, path)} title={addNegative.desc}/>
-                    <ButtonEx className={clsx('bi-arrows-fullscreen w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-arrows-fullscreen w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, expandText, path)} title={expandText.desc}/>
-                    <ButtonEx className={clsx('bi-arrows-collapse-vertical w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-arrows-collapse-vertical w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, collapseText, path)} title={collapseText.desc}/>
-                    <ButtonEx className={clsx('bi-circle-half w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-circle-half w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, inverseText, path)} title={inverseText.desc}/>
-                    <ButtonEx className={clsx('bi-lightning w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-lightning w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, addActions, path)} title={addActions.desc}/>
-                    <ButtonEx className={clsx('bi-check-all w-[24px] h-[24px]')}
+                    <ButtonEx className={clsx('bi-check-all w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(value, addImprove, path)} title={addImprove.desc}/>
                 </div>
             </DropdownButton>}
