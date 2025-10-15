@@ -160,6 +160,7 @@ export const useJsonStore = create<Store>()(
             name: "story.v2",
             storage: createJSONStorage(() => indexedDBStorage),
             partialize: (s) => ({
+                temp: s.temp,
                 json: s.json,
                 collapsed: s.collapsed,
             })

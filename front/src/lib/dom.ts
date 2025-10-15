@@ -1,5 +1,4 @@
 import {generateUID} from "./utils.ts";
-import {INodeProp} from "../components/Editor/node-ui/svg.ts";
 
 export const createTable = (cols: number, rows: number, clb: (obj: {}) => void, classTable: string) => {
     // Создаем div для таблицы
@@ -57,7 +56,7 @@ const camelToKebab = (camelCaseString: string): string => {
     return camelCaseString.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
 }
 
-const setProperty = (node: Element, arg: INodeProp): Element => {
+const setProperty = (node: any, arg: any): Element => {
     Object.entries(arg).forEach(([key, val]) => {
         if (key == 'to') {
             (val as SVGElement).append(node);
@@ -70,7 +69,7 @@ const setProperty = (node: Element, arg: INodeProp): Element => {
         } else if (key == 'id') {
             node.id = val;
         } else if (key == 'class') {
-            node.classList.value = (typeof val === 'string') ? val : val.join(' ');
+            node.classList.value = (typeof val === 'string') ? val : (val as any).join(' ');
         } else {
             node.setAttribute(camelToKebab(key), val)
         }

@@ -12,7 +12,7 @@ import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
 import {toGPT} from "./general.utils.ts";
-import {fnPromptTextHandling, ItemPlotModifier, listPlotModifiers, PlotModifiers, promptWrite} from "./prompts.ts";
+import {fnPromptTextHandling, listPlotModifiers, promptPlotAddon, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
@@ -21,6 +21,25 @@ import Dialog from "../Auxiliary/Dialog.tsx";
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
 const SET_OPTIONS = 'options desc example requirements variants';
 let total = 0;
+const COMMON_PATHS: string[][] = [
+    ['Общие', 'Название'],
+    ['Общие', 'Жанр'],
+    ['Общие', 'Общее настроение'],
+    ['Общие', 'Эпоха'],
+    ['Общие', 'Возраст аудитории'],
+    ['Общие', 'Ключевые вопросы'],
+    ['Общие', 'Основные противоречия'],
+    ['Общие', 'Образы символы'],
+] as const;
+
+const extractCommonValues = (src: any) => {
+    const [name, genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols] = COMMON_PATHS.map((path: string[]) => {
+        const [obj, key] = getObjectByPath(src, [...path, 'value']);
+        return obj[key];
+    });
+
+    return {genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols};
+};
 
 const pathHandler = (path: (string | number)[]) => {
     return path.join('.').toLocaleLowerCase().replaceAll(/[^a-zA-Zа-яА-Я.]/g, '-');
@@ -209,108 +228,107 @@ const General = (props: CallbackParams) => {
     const [openConfirm, setOpenConfirm] = useState(false);
 
     const [_val, set_val] = useState<any>(value.value);
-    const [listSelected, setListSelected] = useState<Record<string, { value: string, modifier: ItemPlotModifier }>>({})
 
     const tags = value?.options?.tags;
-    const isAllCharacters = isEqualString(tags, 'plot-short');
+    const isPlotShort = isEqualString(tags, 'plot-short');
 
     let isOptions = LIST_KEY_NAME[keyName];
     let name: string = isOptions ?? keyName;
 
-    if (isAllCharacters) {
-        return <>
-            <div className="text-nowrap">{name}</div>
-            {Object.entries(listPlotModifiers as PlotModifiers).map(([key, type], i) => {
-                return (
-                    <div key={i} className={
-                        clsx('-outline-offset-3 outline-1 outline-gray-200 rounded-[5px] px-2 pt-1 pb-0.5')
-                    }>
-                        <div>
-                            {key}
-                        </div>
-                        <div>
-                            {Object.entries(type as ItemPlotModifier).map(([key, modifier], i) => {
-                                return (
-                                    <DropdownButton key={i} title={key + ': ' + (listSelected?.[key]?.value ?? '...')}
-                                                    className={clsx(listSelected?.[key] ? 'bg-gray-200 text-gray-900' : 'text-gray-500')}
-                                    >
-                                        <div className={clsx(
-                                            'flex flex-col bg-white gap-0.5',
-                                            'outline-1 outline-gray-200 rounded-[5px] p-2'
-                                        )}>
-                                            <ButtonEx
-                                                key={i} className="justify-start"
-                                                onClick={() => setListSelected((now) => {
-                                                    const _now = {...now};
-                                                    delete _now[key];
-                                                    return _now;
-                                                })}>
-                                                &nbsp;
-                                            </ButtonEx>
-                                            {modifier.arrModifiers.map((value: string, i: React.Key) => {
-                                                return (
-                                                    <ButtonEx
-                                                        key={i} className="justify-start"
-                                                        onClick={() => setListSelected(() => {
-                                                            const _listSelected = {...listSelected};
-                                                            _listSelected[key] = {value, modifier}
-                                                            return _listSelected;
-                                                        })}>
-                                                        {value}
-                                                    </ButtonEx>);
-                                            })}
-                                        </div>
-                                    </DropdownButton>);
-                            })}
-                        </div>
-                    </div>)
-            })}
-            <div>
-                <ButtonEx onClick={() => {
-                    const res: Record<string, string> = {desc: '', example: '', requirements: ''};
-                    Object.entries(listSelected).forEach(([_, {modifier: {desc, example, requirements}, value}]) => {
-                        res.desc += ' ' + template(desc, {modif: value});
-                        res.example += ' ' + example;
-                        res.requirements += ' ' + requirements;
-                    })
+    return <div className="text-nowrap">{name}</div>;
 
-                    console.log(res);
-                }} text="123"/>
-            </div>
-            <ButtonEx onClick={() => setOpenModal(true)}>12</ButtonEx>
-            {openModal && <Modal show={openModal} onHide={() => setOpenConfirm(true)} autoSize={false}>
-                <Modal.Header>
-                    <Modal.Title className="text-sm">Сюжет</Modal.Title>
-                </Modal.Header>
-
-                <TextWrite
-                    className="text-black !w-[50vw] h-[40vh] overflow-y-scroll !leading-normal"
-                    value={_val}
-                    onChange={(e) => set_val(e.target.value)}
-                    onBlur={() => setOpenConfirm(true)}
-                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                        if (e.key === "Enter" && e.ctrlKey) {
-                            useJsonStore.getState().setAtPath([...path, 'value'], _val);
-                            (e.target as HTMLInputElement).blur();
-                        }
-                    }}
-                    placeholder={value.desc}
-                />
-            </Modal>}
-            <Dialog
-                title="Сохрание" message="Уверены?"
-                show={openConfirm} setShow={setOpenConfirm}
-                onConfirm={() => {
-                    useJsonStore.getState().setAtPath([...path, 'value'], _val);
-                    setOpenModal(false);
-                }}
-                onUnconfirm={() => setOpenModal(false)}
-                props={{className: 'modal-sm'}}>
-            </Dialog>
-        </>
-    } else {
-        return <div className="text-nowrap">{name}</div>;
-    }
+    // if (isPlotShort) {
+    //     return <div className="flex flex-wrap">
+    //         <div className="text-nowrap w-full">{name}</div>
+    //         {Object.entries(listPlotModifiers).map(([key, type], i) => {
+    //             return (
+    //                 <div key={i}
+    //                      className="w-[100%] -outline-offset-3 outline-1 outline-gray-200 rounded-[5px] px-2 pt-1 pb-0.5'">
+    //                     <div>
+    //                         {key}
+    //                     </div>
+    //                     <div className="flex flex-col">
+    //                         {Object.entries(type).map(([key, modifier], i) => {
+    //                             return (
+    //                                 <div key={i} className="flex flex-row">
+    //                                     {key}
+    //                                     <div className={clsx('flex flex-row')}>
+    //                                         {modifier.arrModifiers.map((modif: string, i: React.Key) =>
+    //                                             <ButtonEx
+    //                                                 key={i} className="justify-start"
+    //                                                 onAction={async () => {
+    //                                                     const src = useJsonStore.getState().json;
+    //                                                     const {genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols} =
+    //                                                         extractCommonValues(src);
+    //                                                     const ARR_SETTINGS = ['Название', 'Жанр', 'Общее настроение', 'Эпоха', 'Возраст аудитории', 'Ключевые вопросы', 'Основные противоречия', 'Образы символы'];
+    //                                                     const res = template(promptPlotAddon, {
+    //                                                         settings: '\n- ' + [genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols].map((it, i) => ARR_SETTINGS[i] + ': ' + it).join(';\n- '),
+    //                                                         task: template(modifier.desc, {modif}),
+    //                                                         requirements: modifier.requirements,
+    //                                                         plot: value.value
+    //                                                     });
+    //                                                     // console.log(res);
+    //                                                     let resultStruct = await toGPT(res);
+    //                                                     useJsonStore.getState().setAtPath([...path, 'value'], value.value + '\n' + resultStruct);
+    //                                                 }}>
+    //                                                 {modif}
+    //                                             </ButtonEx>)}
+    //                                     </div>
+    //                                 </div>);
+    //                         })}
+    //                     </div>
+    //                 </div>)
+    //         })}
+    //         <div>
+    //             {/*<ButtonEx onClick={async () => {*/}
+    //
+    //             {/*    const {modifier: {desc, example, requirements}, modif} = Object.values(listSelected)[0];*/}
+    //             {/*    const res = template(promptPlotAddon, {*/}
+    //             {/*        task: template(desc, {modif}),*/}
+    //             {/*        requirements,*/}
+    //             {/*        plot: value.value*/}
+    //             {/*    });*/}
+    //             {/*    // console.log(res);*/}
+    //
+    //             {/*    let resultStruct = await toGPT(res);*/}
+    //             {/*    // console.log(resultStruct)*/}
+    //             {/*    useJsonStore.getState().setAtPath([...path, 'value'], value.value + ' ' + resultStruct);*/}
+    //             {/*}} text="123"/>*/}
+    //         </div>
+    //         <ButtonEx onClick={() => setOpenModal(true)}>12</ButtonEx>
+    //         {openModal && <Modal show={openModal} onHide={() => setOpenConfirm(true)} autoSize={false}>
+    //             <Modal.Header>
+    //                 <Modal.Title className="text-sm">Сюжет</Modal.Title>
+    //             </Modal.Header>
+    //
+    //             <TextWrite
+    //                 className="text-black !w-[50vw] h-[40vh] overflow-y-scroll !leading-normal"
+    //                 value={_val}
+    //                 onChange={(e) => set_val(e.target.value)}
+    //                 onBlur={() => setOpenConfirm(true)}
+    //                 onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+    //                     if (e.key === "Enter" && e.ctrlKey) {
+    //                         useJsonStore.getState().setAtPath([...path, 'value'], _val);
+    //                         (e.target as HTMLInputElement).blur();
+    //                     }
+    //                 }}
+    //                 placeholder={value.desc}
+    //             />
+    //         </Modal>}
+    //         <Dialog
+    //             title="Сохрание" message="Уверены?"
+    //             show={openConfirm} setShow={setOpenConfirm}
+    //             onConfirm={() => {
+    //                 useJsonStore.getState().setAtPath([...path, 'value'], _val);
+    //                 setOpenModal(false);
+    //             }}
+    //             onUnconfirm={() => setOpenModal(false)}
+    //             props={{className: 'modal-sm'}}>
+    //         </Dialog>
+    //     </div>
+    // } else {
+    //     return <div className="text-nowrap">{name}</div>;
+    // }
 };
 const Characters = (props: CallbackParams) => {
     const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
@@ -491,17 +509,8 @@ const GPTHeader = (props: CallbackParams) => {
         target.example = fnPrompt?.example ?? '';
         target.value = '';
 
-        const src = useJsonStore.getState().json;
-
-        let obj: { [x: string]: any; }, key: string | number;
-        [obj, key] = getObjectByPath(src, ['Общие', 'Жанр', 'value'])
-        const genre = obj[key];
-        [obj, key] = getObjectByPath(src, ['Общие', 'Общее настроение', 'value'])
-        const mood = obj[key];
-        [obj, key] = getObjectByPath(src, ['Общие', 'Эпоха', 'value'])
-        const age = obj[key];
-        [obj, key] = getObjectByPath(src, ['Общие', 'Возраст аудитории', 'value'])
-        const ageLimit = obj[key];
+        const json = useJsonStore.getState().json;
+        const {genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols} = extractCommonValues(json);
 
         let promptRequirements = template(fnPrompt?.requirements ?? '', {
             halfWords: Math.trunc(countWords * .5),

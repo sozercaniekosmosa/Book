@@ -49,9 +49,9 @@ async function callGPT({system, user = null, progressID = null, method = 'gpt'})
     }
 }
 
-export const toGPT = async (prompt:string, param) => {
+export const toGPT = async (prompt: string, param?: any) => {
 
-    const promptBuild = template(prompt, {...param});
+    const promptBuild = param ? template(prompt, {...param}) : prompt;
     const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite'});
 
     return typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;

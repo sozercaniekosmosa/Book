@@ -8,6 +8,7 @@ import {Tab, Tabs} from './Auxiliary/Tabs.tsx';
 import {ERR, LOG, OK, WARN} from "./PopupMessage/PopupMessage.tsx";
 import Group from "./Auxiliary/Group.tsx";
 import {StoryEditor} from "./Book/BookStory.tsx";
+import {useJsonStore} from "./Book/store/storeBook.ts";
 
 function Index() {
     const [progress, setProgress] = useState(0)
@@ -42,6 +43,21 @@ function Index() {
         }
     }, [])
 
+    useEffect(() => {
+
+        setTimeout(() => {
+            // @ts-ignore
+            // debugger
+            console.log(useJsonStore?.getState()?.temp?.['yScroll'])
+            let a = useJsonStore?.getState()?.temp?.['yScroll'];
+
+            // @ts-ignore
+            refStoryEditor?.current?.scrollTo(0, a)
+        }, 0)
+
+        //
+    }, [refStoryEditor]);
+
     return (
         <div className="flex flex-col h-full">
             <div id="modalPortal" style={{
@@ -56,7 +72,12 @@ function Index() {
             <Tabs defaultActiveKey="storybook" className="mb-1 h-full">
 
                 <Tab eventKey="storybook" title="storybook" className="">
-                    <div className="h-full p-1 text-[14px] overflow-y-scroll" ref={refStoryEditor}>
+                    <div className="h-full p-1 text-[14px] overflow-y-scroll" ref={refStoryEditor} onScroll={e => {
+                        // console.log(e.target.scrollTop);
+                        // @ts-ignore
+                        const yScroll = e.target.scrollTop
+                        useJsonStore.getState().setTemp({yScroll})
+                    }}>
                         <StoryEditor/>
                     </div>
                 </Tab>
