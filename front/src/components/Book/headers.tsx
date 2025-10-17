@@ -12,11 +12,9 @@ import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
 import {toGPT} from "./general.utils.ts";
-import {fnPromptTextHandling, listPlotModifiers, promptPlotAddon, promptWrite} from "./prompts.ts";
+import {fnPromptTextHandling, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
-import Modal from "../Auxiliary/ModalWindow.tsx";
-import Dialog from "../Auxiliary/Dialog.tsx";
 
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
 const SET_OPTIONS = 'options desc example requirements variants';
