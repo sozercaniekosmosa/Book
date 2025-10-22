@@ -83,10 +83,10 @@ routerGeneral.post('/gpt', async (req, res) => {
     }
 });
 routerGeneral.post('/image', async (req, res) => {
-    const {body: {id, type, user, system, progressID}} = req;
+    const {body: {id, type, prompt, arrImage}} = req;
     let textGPT = '';
     try {
-        textGPT = await getImageOpenAPI(system, user, progressID, OPENROUTER_API_KEY);
+        textGPT = await getImageOpenAPI(prompt, arrImage, OPENROUTER_API_KEY);
 
         res.status(200).send(textGPT);
     } catch (error) {

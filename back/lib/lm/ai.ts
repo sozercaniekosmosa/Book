@@ -4,7 +4,7 @@ import {readFileAsync, writeFileAsync} from "../filesystem.js";
 import OpenAI from "openai";
 import {config} from "dotenv";
 import glob from "../../../front/src/glob.js";
-import { generateUID } from "../utils.js";
+import {generateUID} from "../utils.js";
 
 const {parsed} = config();
 const {FOLDER_ID, OAUTH_TOKEN, ARLIAI_API_KEY, MISTRAL_API_KEY} = parsed;
@@ -52,9 +52,11 @@ export async function arliGPT(prompt, text, arliai_api_key) {
     }
 }
 
-export async function getImageOpenAPI(system: string, user: string, progressID: string, api_key: string) {
+export async function getImageOpenAPI(prompt: string, arrImage: string[], api_key: string) {
 
     try {
+        if (arrImage?.length > 3) throw 'Too many images > 3';
+
         const openai = new OpenAI({
             baseURL: "https://openrouter.ai/api/v1",
             apiKey: api_key,
@@ -62,39 +64,35 @@ export async function getImageOpenAPI(system: string, user: string, progressID: 
 
         const model = "google/gemini-2.5-flash-image-preview"
 
+        let content: any = [
+            {
+                type: 'text',
+                text: `${prompt}. Merge the two attached images into a single cohesive scene based on the text.`
+            }
+        ];
+
+        if (arrImage)
+            content = [...content, ...arrImage.map(base64DataUri => ({
+                type: 'image_url',
+                image_url: {url: base64DataUri}, // Base64 Data URI
+            }))]
+
+
         const response = await openai.chat.completions.create({
-            model,
-            messages: system && user ? [
-                {role: "system", content: system},
-                {role: "user", content: user}
-            ] : [
-                {role: "user", content: system ?? user}
-            ],
-            stream: true, // в потоке
-
-            // temperature: .5, // В диапазоне от 0 до 2 (по умолчанию – 1.0). Более высокое значение делает ответы более креативными и непредсказуемыми, низкое — более детерминированными
-            // top_p: 0.95, // От 0 до 1.0 (по умолчанию — 0.95). Альтернатива температуре: регулировка разнообразия текста
-            // n: 1,
-            // frequency_penalty: 1, // от -2.0 до 2.0, штраф за повторяемость слов
-            // presence_penalty: 1.5, // от -2.0 до 2.0, поощрение упоминания новых тем
-
-            // response_format: {"type": "json_object"},
+            model: model,
+            messages: [{role: 'user', content}]
         });
 
+        const message = response.choices[0].message;
+        const generatedImages = (message as any).images;
 
-        // const result = response.choices[0].message.content;
-        let result = '';
-        for await (const chunk of response) {
-            const part: string | null = chunk.choices[0].delta?.content ?? null;
-            result += part;
-            glob.ws && (glob.ws as WebSocket).send(JSON.stringify({
-                type: 'gpt-progress' + (progressID ? '-' + progressID : ''),
-                data: result
-            }));
+        if (generatedImages && generatedImages.length > 0) {
+            console.log('Generated Image URL (Base64/URL):', generatedImages[0].image_url.url.substring(0, 50) + '...');
+            return generatedImages[0].image_url.url;
+        } else {
+            console.log('Text Response:', message.content);
+            return 'Image generation request sent, but no image URL found.';
         }
-
-        // console.log(result);
-        return result.startsWith('\`\`\`json') ? result.substring(7, result.length - 4) : result;
 
     } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -128,6 +126,7 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
         // const model = "qwen/qwq-32b"//..s
 
         // тестим
+        // const model = "anthropic/claude-haiku-4.5"//..s
         const model = "google/gemini-2.0-flash-001"//..s
         // const model = "google/gemini-2.5-flash-lite-preview-09-2025"//..s
         // const model = "google/gemini-2.5-flash-lite"//..s

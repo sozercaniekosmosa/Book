@@ -8,7 +8,7 @@ import {Tab, Tabs} from './Auxiliary/Tabs.tsx';
 import {ERR, LOG, OK, WARN} from "./PopupMessage/PopupMessage.tsx";
 import Group from "./Auxiliary/Group.tsx";
 import {StoryEditor} from "./Book/BookStory.tsx";
-import {useJsonStore} from "./Book/store/storeBook.ts";
+import {useBookStore} from "./Book/store/storeBook.ts";
 
 function Index() {
     const [progress, setProgress] = useState(0)
@@ -31,7 +31,7 @@ function Index() {
         // @ts-ignore
         eventBus.addEventListener('set-scroll-top', () => {
             // @ts-ignore
-            refStoryEditor.current.scrollTop = useJsonStore.getState().temp.scrollTop;
+            refStoryEditor.current.scrollTop = useBookStore.getState().temp.scrollTop;
         });
 
         eventBus.addEventListener('message-socket', socketHandler);
@@ -48,8 +48,8 @@ function Index() {
         setTimeout(() => {
             // @ts-ignore
             // debugger
-            console.log(useJsonStore?.getState()?.temp?.['yScroll'])
-            let a = useJsonStore?.getState()?.temp?.['yScroll'];
+            console.log(useBookStore?.getState()?.temp?.['yScroll'])
+            let a = useBookStore?.getState()?.temp?.['yScroll'];
 
             // @ts-ignore
             refStoryEditor?.current?.scrollTo(0, a)
@@ -76,7 +76,7 @@ function Index() {
                         // console.log(e.target.scrollTop);
                         // @ts-ignore
                         const yScroll = e.target.scrollTop
-                        useJsonStore.getState().setTemp({yScroll})
+                        useBookStore.getState().setTemp({yScroll})
                     }}>
                         <StoryEditor/>
                     </div>

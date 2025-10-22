@@ -1,7 +1,9 @@
+// ~noinspection JSUnusedLocalSymbols
+// ~@ts-nocheck
 import {generateUID, getID, getObjectByPath, isEmpty, isEqualString, walkAndFilter} from "../../lib/utils.ts";
-import {useJsonStore} from "./store/storeBook.ts";
+import {useBookStore, useImageStore} from "./store/storeBook.ts";
 import React, {useCallback, useEffect, useRef, useState} from "react";
-import {CallbackParams, Clb, DefaultIcon} from "./JSONTreeEditor.tsx";
+import {CallbackParams, Clb, DefaultIcon} from "./BookTreeEditor.tsx";
 import TextWrite from "../Auxiliary/TextWrite.tsx";
 import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import clsx from "clsx";
@@ -11,49 +13,40 @@ import {structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {toGPT} from "./general.utils.ts";
-import {fnPromptTextHandling, promptWrite} from "./prompts.ts";
+import {toGPT, toImageGenerate} from "./general.utils.ts";
+import {fnPromptTextHandling, promptImageCharacter, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
+
+// @ts-ignore
+window.q = useImageStore.getState;
 
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
 const SET_OPTIONS = 'options desc example requirements variants';
 let total = 0;
-const COMMON_PATHS: string[][] = [
-    ['Общие', 'Название'],
-    ['Общие', 'Жанр'],
-    ['Общие', 'Общее настроение'],
-    ['Общие', 'Эпоха'],
-    ['Общие', 'Возраст аудитории'],
-    ['Общие', 'Ключевые вопросы'],
-    ['Общие', 'Основные противоречия'],
-    ['Общие', 'Образы символы'],
-] as const;
 
-const extractCommonValues = (src: any) => {
-    const [name, genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols] = COMMON_PATHS.map((path: string[]) => {
-        const [obj, key] = getObjectByPath(src, [...path, 'value']);
+const extractCommonValues = (arrPath: string[][]) =>
+    arrPath.map((path: string[]) => {
+        const [obj, key] = getObjectByPath(useBookStore.getState().book, [...path, 'value']);
         return obj[key];
     });
-
-    return {genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols};
-};
 
 const pathHandler = (path: (string | number)[]) => {
     return path.join('.').toLocaleLowerCase().replaceAll(/[^a-zA-Zа-яА-Я.]/g, '-');
 }
 
 const applyGPTResult = (resultStruct: any, listPathSrc: {}) =>
-    walkAndFilter(resultStruct, ({parent, key, value, hasChild, arrPath}) => {
+
+    walkAndFilter(resultStruct, ({value}) => {
         if (value?.hasOwnProperty('id')) {
             const id = value.id;
             let val = value?.target?.replaceAll?.(/\n\n/g, '\n');
             if (typeof val != 'string') return value;
 
             const path = listPathSrc[id];
-            const [obj, key] = getObjectByPath(useJsonStore.getState().json, path);
+            const [obj, _] = getObjectByPath(useBookStore.getState().book, path);
             if (obj?.hasOwnProperty('value')) {
-                useJsonStore.getState().setAtPath(path, val);
+                useBookStore.getState().setAtPath(path, val);
             } else {
                 debugger;
                 console.error('Тип результата не соответствует', val);
@@ -62,7 +55,7 @@ const applyGPTResult = (resultStruct: any, listPathSrc: {}) =>
         return value;
     });
 
-const deleteFields = (dataStruct: any, arrFields) =>
+const deleteFields = (dataStruct: any, arrFields: string[]) =>
     walkAndFilter(dataStruct, ({value}) => {
         arrFields.forEach((field: string) => {
             if (value?.hasOwnProperty(field)) delete value[field];
@@ -80,7 +73,7 @@ const deleteEmpty = (dataStruct: any) =>
  */
 const prepareStructureFirst = (dataStruct: any) => {
 
-    const dataFilteredEmptyVal = walkAndFilter(dataStruct, ({parent, key, value, hasChild, arrPath}) => {
+    const dataFilteredEmptyVal = walkAndFilter(dataStruct, ({parent, key, value}) => {
 
         if (parent?.hasOwnProperty('value') && parent.value == '') return null;
         if (value?.hasOwnProperty('value') && value.value == '') return null;
@@ -105,7 +98,7 @@ const prepareStructureFirst = (dataStruct: any) => {
     return dataFilteredEmptyVal;
 }
 const prepareStructureSecond = (dataStruct: any) => {
-    dataStruct = walkAndFilter(dataStruct, ({key, value}) => {
+    dataStruct = walkAndFilter(dataStruct, ({value}) => {
         if (value?.hasOwnProperty('value')) {
             const incompressible = value?.options?.tags?.includes('incompressible');
             delete value.requirements;
@@ -137,7 +130,7 @@ const InputNumberEditor = ({doInput, value, className = ''}) => {
             e.preventDefault();
 
             if (isFocus) {
-                setCurVal((val) => val + (e.deltaY > 0 ? -1 : 1));
+                setCurVal((val: number) => val + (e.deltaY > 0 ? -1 : 1));
             }
         };
 
@@ -178,10 +171,10 @@ const SceneHeader = (props: CallbackParams) => {
             fitToTextSize={true}
             value={_val}
             onChange={(e) => set_val(e.target.value)}
-            onBlur={() => useJsonStore.getState().setAtPath(path.concat(['Название кратко', 'value']), _val)}
+            onBlur={() => useBookStore.getState().setAtPath(path.concat(['Название кратко', 'value']), _val)}
             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter" && e.ctrlKey) {
-                    useJsonStore.getState().setAtPath(path.concat(['Название кратко', 'value']), _val);
+                    useBookStore.getState().setAtPath(path.concat(['Название кратко', 'value']), _val);
                     (e.target as HTMLInputElement).blur();
                 }
             }}
@@ -190,10 +183,9 @@ const SceneHeader = (props: CallbackParams) => {
     </>
 }
 const MinorCharacterHeader = (props: CallbackParams) => {
-    const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
-    const characterName = value?.['Имя кратко']?.value;
-    const characterDesc = value?.['Имя кратко']?.desc;
+    const characterName = (props.value)?.['Имя кратко']?.value;
+    const characterDesc = (props.value)?.['Имя кратко']?.desc;
 
     const [_val, set_val] = useState<any>(characterName);
 
@@ -205,10 +197,10 @@ const MinorCharacterHeader = (props: CallbackParams) => {
             value={_val}
 
             onChange={(e) => set_val(e.target.value)}
-            onBlur={() => useJsonStore.getState().setAtPath(path.concat(['Имя кратко', 'value']), _val)}
+            onBlur={() => useBookStore.getState().setAtPath(props.path.concat(['Имя кратко', 'value']), _val)}
             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter" && e.ctrlKey) {
-                    useJsonStore.getState().setAtPath(path.concat(['Имя кратко', 'value']), _val);
+                    useBookStore.getState().setAtPath(props.path.concat(['Имя кратко', 'value']), _val);
                     (e.target as HTMLInputElement).blur();
                 }
             }}
@@ -219,128 +211,26 @@ const MinorCharacterHeader = (props: CallbackParams) => {
 };
 
 const General = (props: CallbackParams) => {
-    const {keyName, path, value} = props;
-    if (path[0] != 'Общие') return null;
+    if ((props.path)[0] != 'Общие') return null;
 
-    const [openModal, setOpenModal] = useState(false);
-    const [openConfirm, setOpenConfirm] = useState(false);
-
-    const [_val, set_val] = useState<any>(value.value);
-
-    const tags = value?.options?.tags;
-    const isPlotShort = isEqualString(tags, 'plot-short');
-
-    let isOptions = LIST_KEY_NAME[keyName];
-    let name: string = isOptions ?? keyName;
+    let isOptions = LIST_KEY_NAME[props.keyName];
+    let name: string = isOptions ?? props.keyName;
 
     return <div className="text-nowrap">{name}</div>;
-
-    // if (isPlotShort) {
-    //     return <div className="flex flex-wrap">
-    //         <div className="text-nowrap w-full">{name}</div>
-    //         {Object.entries(listPlotModifiers).map(([key, type], i) => {
-    //             return (
-    //                 <div key={i}
-    //                      className="w-[100%] -outline-offset-3 outline-1 outline-gray-200 rounded-[5px] px-2 pt-1 pb-0.5'">
-    //                     <div>
-    //                         {key}
-    //                     </div>
-    //                     <div className="flex flex-col">
-    //                         {Object.entries(type).map(([key, modifier], i) => {
-    //                             return (
-    //                                 <div key={i} className="flex flex-row">
-    //                                     {key}
-    //                                     <div className={clsx('flex flex-row')}>
-    //                                         {modifier.arrModifiers.map((modif: string, i: React.Key) =>
-    //                                             <ButtonEx
-    //                                                 key={i} className="justify-start"
-    //                                                 onAction={async () => {
-    //                                                     const src = useJsonStore.getState().json;
-    //                                                     const {genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols} =
-    //                                                         extractCommonValues(src);
-    //                                                     const ARR_SETTINGS = ['Название', 'Жанр', 'Общее настроение', 'Эпоха', 'Возраст аудитории', 'Ключевые вопросы', 'Основные противоречия', 'Образы символы'];
-    //                                                     const res = template(promptPlotAddon, {
-    //                                                         settings: '\n- ' + [genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols].map((it, i) => ARR_SETTINGS[i] + ': ' + it).join(';\n- '),
-    //                                                         task: template(modifier.desc, {modif}),
-    //                                                         requirements: modifier.requirements,
-    //                                                         plot: value.value
-    //                                                     });
-    //                                                     // console.log(res);
-    //                                                     let resultStruct = await toGPT(res);
-    //                                                     useJsonStore.getState().setAtPath([...path, 'value'], value.value + '\n' + resultStruct);
-    //                                                 }}>
-    //                                                 {modif}
-    //                                             </ButtonEx>)}
-    //                                     </div>
-    //                                 </div>);
-    //                         })}
-    //                     </div>
-    //                 </div>)
-    //         })}
-    //         <div>
-    //             {/*<ButtonEx onClick={async () => {*/}
-    //
-    //             {/*    const {modifier: {desc, example, requirements}, modif} = Object.values(listSelected)[0];*/}
-    //             {/*    const res = template(promptPlotAddon, {*/}
-    //             {/*        task: template(desc, {modif}),*/}
-    //             {/*        requirements,*/}
-    //             {/*        plot: value.value*/}
-    //             {/*    });*/}
-    //             {/*    // console.log(res);*/}
-    //
-    //             {/*    let resultStruct = await toGPT(res);*/}
-    //             {/*    // console.log(resultStruct)*/}
-    //             {/*    useJsonStore.getState().setAtPath([...path, 'value'], value.value + ' ' + resultStruct);*/}
-    //             {/*}} text="123"/>*/}
-    //         </div>
-    //         <ButtonEx onClick={() => setOpenModal(true)}>12</ButtonEx>
-    //         {openModal && <Modal show={openModal} onHide={() => setOpenConfirm(true)} autoSize={false}>
-    //             <Modal.Header>
-    //                 <Modal.Title className="text-sm">Сюжет</Modal.Title>
-    //             </Modal.Header>
-    //
-    //             <TextWrite
-    //                 className="text-black !w-[50vw] h-[40vh] overflow-y-scroll !leading-normal"
-    //                 value={_val}
-    //                 onChange={(e) => set_val(e.target.value)}
-    //                 onBlur={() => setOpenConfirm(true)}
-    //                 onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-    //                     if (e.key === "Enter" && e.ctrlKey) {
-    //                         useJsonStore.getState().setAtPath([...path, 'value'], _val);
-    //                         (e.target as HTMLInputElement).blur();
-    //                     }
-    //                 }}
-    //                 placeholder={value.desc}
-    //             />
-    //         </Modal>}
-    //         <Dialog
-    //             title="Сохрание" message="Уверены?"
-    //             show={openConfirm} setShow={setOpenConfirm}
-    //             onConfirm={() => {
-    //                 useJsonStore.getState().setAtPath([...path, 'value'], _val);
-    //                 setOpenModal(false);
-    //             }}
-    //             onUnconfirm={() => setOpenModal(false)}
-    //             props={{className: 'modal-sm'}}>
-    //         </Dialog>
-    //     </div>
-    // } else {
-    //     return <div className="text-nowrap">{name}</div>;
-    // }
 };
 const Characters = (props: CallbackParams) => {
-    const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
-    if (path[0] != 'Персонажи') return null;
+    if ((props.path)[0] != 'Персонажи') return null;
 
-    let tags = value?.options?.tags;
+    let tags = props.value?.options?.tags;
     const isAllCharacters = isEqualString(tags, 'all-characters');
     const isCharacters = isEqualString(tags, 'character');
     const isMinorCharacters = isEqualString(tags, 'minor-characters');
     const isMinorCharacter = isEqualString(tags, 'minor-character');
+    const isImageGen = isEqualString(tags, 'image-gen');
 
-    let isOptions = LIST_KEY_NAME[keyName];
-    let name: string = isOptions ?? keyName;
+    let isOptions = LIST_KEY_NAME[props.keyName];
+    let name: string = isOptions ?? props.keyName;
 
     if (!(isCharacters || isAllCharacters || isMinorCharacters || isMinorCharacter))
         return <div className="text-nowrap">{name}</div>;
@@ -349,10 +239,10 @@ const Characters = (props: CallbackParams) => {
         {!isMinorCharacter && <div className="text-nowrap">{name}</div>}
         {isAllCharacters && <div className="flex 1flex-row gap-1">
             <ButtonEx className={clsx("bi-stack w-[24px] h-[24px] text-[11px]", CONTROL_BTN)} onClick={() => {
-                let json = useJsonStore.getState().json;
-                let arr: string[] = value.value.split('\n');
-                const arrExistCharacter1 = Object.entries(json['Персонажи']['Второстепенные персонажи']).filter(([key, value]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя полное"].value)
-                const arrExistCharacter2 = Object.entries(json['Персонажи']['Второстепенные персонажи']).filter(([key, value]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
+                let book = useBookStore.getState().book;
+                let arr: string[] = props.value.value.split('\n');
+                const arrExistCharacter1 = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя полное"].value)
+                const arrExistCharacter2 = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
                 const arrExistCharacter = [...arrExistCharacter1, ...arrExistCharacter2];
 
                 if (Array.isArray(arr)) {
@@ -363,12 +253,12 @@ const Characters = (props: CallbackParams) => {
 
                         if (charDesc.includes('главный герой')) {
                             console.log('1)' + charDesc);
-                            if (json['Персонажи']['Главный герой']['Общее описание'].value) return;
-                            useJsonStore.getState().mergeAtPath(['Персонажи', 'Главный герой', 'Общее описание'], {value: character})
+                            if (book['Персонажи']['Главный герой']['Общее описание'].value) return;
+                            useBookStore.getState().mergeAtPath(['Персонажи', 'Главный герой', 'Общее описание'], {value: character})
                         } else if (charDesc.includes('антогонист')) {
                             console.log('2)' + charDesc);
-                            if (json['Персонажи']['Антогонист']['Общее описание'].value) return;
-                            useJsonStore.getState().mergeAtPath(['Персонажи', 'Антогонист', 'Общее описание'], {value: character})
+                            if (book['Персонажи']['Антогонист']['Общее описание'].value) return;
+                            useBookStore.getState().mergeAtPath(['Персонажи', 'Антогонист', 'Общее описание'], {value: character})
                         } else {
 
                             const isExist = arrExistCharacter.some(simpleName => {
@@ -379,35 +269,58 @@ const Characters = (props: CallbackParams) => {
                             })
                             if (isExist) return;
 
-                            useJsonStore.getState().mergeAtPath(['Персонажи', 'Второстепенные персонажи'], {['Персонаж-' + getID()]: character})
+                            useBookStore.getState().mergeAtPath(['Персонажи', 'Второстепенные персонажи'], {['Персонаж-' + getID()]: character})
                         }
                     })
-                    useJsonStore.getState().mergeAtPath(['Персонажи', 'Все персонажи'], {value: arr.join('\n')});
+                    useBookStore.getState().mergeAtPath(['Персонажи', 'Все персонажи'], {value: arr.join('\n')});
                 }
             }}/>
         </div>}
         { // Персонажи кнопка [+]
             isMinorCharacters && <>
                 <ButtonEx className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
-                          onClick={() => useJsonStore.getState().mergeAtPath(path, {['Персонаж-' + getID()]: minorCharacter})}/>
+                          onClick={() => useBookStore.getState().mergeAtPath(props.path, {['Персонаж-' + getID()]: minorCharacter})}/>
             </>}
         {isMinorCharacter && <MinorCharacterHeader {...props}/>}
+        {isImageGen && <ButtonEx className="bi-image w-[24px] h-[24px]" onAction={async () => {
+            let book = useBookStore.getState().book;
+
+            console.log(props.keyName)
+
+            const arrPath = [
+                [...props.path, 'Тело/физические характеристики'],
+                [...props.path, 'Стиль и визуальные особенности']
+            ]
+
+            const arr = extractCommonValues(arrPath as string[][]);
+
+
+            let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+            let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
+
+            const prompt = template(promptImageCharacter, {styleGeneral, styleCharacter, desc: arr.join('\n')});
+
+            const res = await toImageGenerate({prompt});
+
+            useImageStore.getState().addCharacters(props.keyName + '', res)
+
+            console.log(res);
+        }}/>}
     </>;
 };
 const PlotArc = (props: CallbackParams) => {
-    const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
-    if (path[0] != 'Сюжетная арка') return null;
+    if ((props.path)[0] != 'Сюжетная арка') return null;
 
-    const tags = value?.options?.tags;
+    const tags = props.value?.options?.tags;
     const isSceneItem = tags?.includes('scene');
     const isPlotArc = tags?.includes('сюжетная-арка');
     const isPlotArcItem = tags?.includes('plot-arc-item');
     const isArcEventsItem = tags?.includes('arc-events');
     const isSceneHeader = tags?.includes('scene');
 
-    let isOptions = LIST_KEY_NAME[keyName];
-    let name: any = isOptions ?? keyName;
+    let isOptions = LIST_KEY_NAME[props.keyName];
+    let name: any = isOptions ?? props.keyName;
     if (isSceneItem) name = null; // Убираем имя заголовка для сцены
 
     if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader))
@@ -422,10 +335,10 @@ const PlotArc = (props: CallbackParams) => {
                     .map(([plot, plotName], i) =>
                         <ButtonEx
                             key={i}
-                            className={clsx(plotName == value?.options?.name && 'bg-gray-300', 'h-[19px]', CONTROL_BTN)}
+                            className={clsx(plotName == props.value?.options?.name && 'bg-gray-300', 'h-[19px]', CONTROL_BTN)}
                             description={"Изменить на " + plotName}
                             onConfirm={() => props.toWrite(plot)}
-                            disabled={plotName == value?.options?.name}
+                            disabled={plotName == props.value?.options?.name}
                         >
                             {plotName as string}
                         </ButtonEx>)}</>
@@ -434,30 +347,30 @@ const PlotArc = (props: CallbackParams) => {
         {isPlotArcItem &&
             // Сцены кнопка [+]
             <ButtonEx className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
-                      onClick={() => useJsonStore.getState().mergeAtPath(path, {['Сцена-' + getID()]: structScene})}/>
+                      onClick={() => useBookStore.getState().mergeAtPath(props.path, {['Сцена-' + getID()]: structScene})}/>
         }
         {isPlotArcItem && <div className="flex flex-row gap-1">
             <Tooltip text={"Количество сцен"} direction={"right"} className={clsx(
                 'text-gray-500', CONTROL_BTN)}>
                 <InputNumberEditor
                     className={"text-center"}
-                    value={value.options.quantScene}
+                    value={props.value.options.quantScene}
                     doInput={(val: number) => {
                         if (isNaN(val)) val = 3;
-                        toWrite(val, [...path, 'options', 'quantScene']);
+                        props.toWrite(val, [...(props.path), 'options', 'quantScene']);
                     }}
                 />
             </Tooltip>
             <ButtonEx className={clsx("bi-stack text-[11px]", CONTROL_BTN)} onClick={() => {
-                const arr = value.value.split('\n')
+                const arr = props.value.value.split('\n')
                 if (Array.isArray(arr)) {
                     arr.forEach(item => {
                         let _structScene = JSON.parse(JSON.stringify(structScene));
                         _structScene['Описание сцены'].value = item;
                         const nameScene = 'Сцена-' + getID();
-                        useJsonStore.getState().mergeAtPath(path, {[nameScene]: _structScene});
-                        useJsonStore.getState().toggleCollapse([...path, nameScene]);
-                        useJsonStore.getState().toggleCollapse([...path, nameScene, '']);
+                        useBookStore.getState().mergeAtPath(props.path, {[nameScene]: _structScene});
+                        useBookStore.getState().toggleCollapse([...(props.path), nameScene]);
+                        useBookStore.getState().toggleCollapse([...(props.path), nameScene, '']);
                     })
                 }
             }}/>
@@ -467,10 +380,10 @@ const PlotArc = (props: CallbackParams) => {
                 'text-gray-500', CONTROL_BTN)}>
                 <InputNumberEditor
                     className={"text-center"}
-                    value={value.options.quantEvents}
+                    value={props.value.options.quantEvents}
                     doInput={(val: number) => {
                         if (isNaN(val)) val = 3;
-                        toWrite(val, [...path, 'options', 'quantEvents']);
+                        props.toWrite(val, [...(props.path), 'options', 'quantEvents']);
                     }}
                 />
             </Tooltip>
@@ -480,7 +393,6 @@ const PlotArc = (props: CallbackParams) => {
 };
 
 const GPTHeader = (props: CallbackParams) => {
-    const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
 
     useEffect(() => {
         eventBus.addEventListener('message-socket', ({type, data}) => {
@@ -498,7 +410,7 @@ const GPTHeader = (props: CallbackParams) => {
         example?: string
     }, path: any[]) => {
 
-        let source = {};
+        let source: {};
         let target = JSON.parse(JSON.stringify(text));
 
         const _value = target.value;
@@ -506,9 +418,16 @@ const GPTHeader = (props: CallbackParams) => {
 
         target.example = fnPrompt?.example ?? '';
         target.value = '';
+        useBookStore.getState().book;
 
-        const json = useJsonStore.getState().json;
-        const {genre, mood, age, ageLimit, keyQuestions, majorContradictions, ImagesSymbols} = extractCommonValues(json);
+        const COMMON_PATHS: string[][] = [
+            ['Общие', 'Жанр'],
+            ['Общие', 'Общее настроение'],
+            ['Общие', 'Эпоха'],
+            ['Общие', 'Возраст аудитории']
+        ] as const;
+
+        const [genre, mood, age, ageLimit] = extractCommonValues(COMMON_PATHS);
 
         let promptRequirements = template(fnPrompt?.requirements ?? '', {
             halfWords: Math.trunc(countWords * .5),
@@ -523,7 +442,7 @@ const GPTHeader = (props: CallbackParams) => {
         source = target;
 
         const listPathSrc = {};
-        source = walkAndFilter(source, ({parent, key, value, hasChild, arrPath}) => {
+        source = walkAndFilter(source, ({value, arrPath}) => {
             if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
 
                 const id = generateUID();
@@ -559,11 +478,11 @@ const GPTHeader = (props: CallbackParams) => {
 
     const generateTextGPT = useCallback(async () => {
 
-        let json = useJsonStore.getState().json;
+        let json = useBookStore.getState().book;
         let source = JSON.parse(JSON.stringify(json));
         source = prepareStructureFirst(source);
 
-        let target = JSON.parse(JSON.stringify(value));
+        let target = JSON.parse(JSON.stringify(props.value));
 
         let numberValue = 0;
         walkAndFilter(target, ({value}) => {
@@ -576,7 +495,7 @@ const GPTHeader = (props: CallbackParams) => {
             return value;
         });
 
-        const [obj, key] = getObjectByPath(source, path as string[]);
+        const [obj, key] = getObjectByPath(source, props.path as string[]);
         obj[key] = target;
 
         const listPathSrc = {};
@@ -607,7 +526,7 @@ const GPTHeader = (props: CallbackParams) => {
             promptWrite,
             {
                 source: JSON.stringify(source, null, 2),
-                path: '["' + path.join('"."') + '"]'
+                path: '["' + props.path.join('"."') + '"]'
             });
 
         total = 0;
@@ -621,7 +540,7 @@ const GPTHeader = (props: CallbackParams) => {
         addEvil, addKindness, addNegative, addPositive, collapseText, expandText, inverseText, addActions, addImprove
     } = fnPromptTextHandling;
 
-    const isValue = value?.hasOwnProperty('value') && typeof value.value !== "object";
+    const isValue = props.value?.hasOwnProperty('value') && typeof props.value.value !== "object";
 
     return <>
         <ButtonEx className={clsx('bi-stars w-[24px] h-[24px]', CONTROL_BTN)}
@@ -634,50 +553,57 @@ const GPTHeader = (props: CallbackParams) => {
                     'outline-1 outline-gray-200 rounded-[5px] p-2'
                 )}>
                     <ButtonEx className={clsx('bi-sun w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, addKindness, path)} title={addKindness.desc}/>
+                              onAction={() => handleTextGPT(props.value, addKindness, props.path)}
+                              title={addKindness.desc}/>
                     <ButtonEx className={clsx('bi-cloud-rain w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, addEvil, path)} title={addEvil.desc}/>
+                              onAction={() => handleTextGPT(props.value, addEvil, props.path)} title={addEvil.desc}/>
                     <ButtonEx className={clsx('bi-emoji-smile w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, addPositive, path)} title={addPositive.desc}/>
+                              onAction={() => handleTextGPT(props.value, addPositive, props.path)}
+                              title={addPositive.desc}/>
                     <ButtonEx className={clsx('bi-emoji-frown w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, addNegative, path)} title={addNegative.desc}/>
+                              onAction={() => handleTextGPT(props.value, addNegative, props.path)}
+                              title={addNegative.desc}/>
                     <ButtonEx className={clsx('bi-arrows-fullscreen w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, expandText, path)} title={expandText.desc}/>
+                              onAction={() => handleTextGPT(props.value, expandText, props.path)}
+                              title={expandText.desc}/>
                     <ButtonEx className={clsx('bi-arrows-collapse-vertical w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, collapseText, path)} title={collapseText.desc}/>
+                              onAction={() => handleTextGPT(props.value, collapseText, props.path)}
+                              title={collapseText.desc}/>
                     <ButtonEx className={clsx('bi-circle-half w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, inverseText, path)} title={inverseText.desc}/>
+                              onAction={() => handleTextGPT(props.value, inverseText, props.path)}
+                              title={inverseText.desc}/>
                     <ButtonEx className={clsx('bi-lightning w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, addActions, path)} title={addActions.desc}/>
+                              onAction={() => handleTextGPT(props.value, addActions, props.path)}
+                              title={addActions.desc}/>
                     <ButtonEx className={clsx('bi-check-all w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(value, addImprove, path)} title={addImprove.desc}/>
+                              onAction={() => handleTextGPT(props.value, addImprove, props.path)}
+                              title={addImprove.desc}/>
                 </div>
             </DropdownButton>}
     </>
 };
 
 export const clbHeader: Clb = (props: CallbackParams) => {
-    const {children, header, parent, toWrite, collapsed, deep, keyName, path, toSwitch, value,} = props;
     const arrSize = [14, 14, 14];
 
-    const options = value?.options;
-    const isToggle = !options?.excludes?.includes('toggle') && Object.keys(value).filter(it => !SET_OPTIONS.includes(it)).length > 0;
+    const options = props.value?.options;
+    const isToggle = !options?.excludes?.includes('toggle') && Object.keys(props.value).filter(it => !SET_OPTIONS.includes(it)).length > 0;
 
-    let isOptions = LIST_KEY_NAME[keyName];
+    let isOptions = LIST_KEY_NAME[props.keyName];
 
     return <div
         className={clsx('flex items-center gap-0.5 transition-all duration-700 hover:shadow-[inset_0_-1px_1px_rgba(0,0,0,0.05)]')}
-        style={{fontSize: arrSize?.[deep] ?? 14 + 'px'}}
+        style={{fontSize: arrSize?.[props.deep] ?? 14 + 'px'}}
         onMouseDown={(e) => {
             if (e.button != 1) return;
             e.preventDefault();
             e.stopPropagation();
-            if (e.button == 1) (async () => await navigator.clipboard.writeText(pathHandler(path)))();
+            if (e.button == 1) (async () => await navigator.clipboard.writeText(pathHandler(props.path)))();
         }}
     >
         {isToggle &&
-            <ButtonEx onClick={() => toSwitch()} className="p-1 rounded hover:bg-gray-100">
-                <DefaultIcon collapse={collapsed}/>
+            <ButtonEx onClick={() => props.toSwitch()} className="p-1 rounded hover:bg-gray-100">
+                <DefaultIcon collapse={props.collapsed}/>
             </ButtonEx>
         }
         <General {...props}/>
@@ -689,8 +615,8 @@ export const clbHeader: Clb = (props: CallbackParams) => {
             <ButtonEx // Кнопка очистить поля
                 className={clsx("bi-eraser-fill w-[24px] h-[24px] hover:!bg-sky-600 hover:text-white transition", CONTROL_BTN)}
                 description="Очистить"
-                onConfirm={() => walkAndFilter(value, ({key, value, arrPath}) => {
-                    key == 'value' && useJsonStore.getState().setAtPath(path.concat(arrPath), '');
+                onConfirm={() => walkAndFilter(props.value, ({key, value, arrPath}) => {
+                    key == 'value' && useBookStore.getState().setAtPath(props.path.concat(arrPath), '');
                     return value;
                 })}/>
             {options?.tags?.includes('deletable') && <ButtonEx
@@ -698,14 +624,14 @@ export const clbHeader: Clb = (props: CallbackParams) => {
                     clsx("bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition", CONTROL_BTN)
                 }
                 description="Удалить"
-                onConfirm={() => useJsonStore.getState().removeAtPath(path)}/>}
-            {(value?.desc || value?.examples || value?.requirements) && <ButtonEx className={clsx(
-                value?.options?.forcedIncludes ? 'bi-gear-fill' : 'bi-gear',
+                onConfirm={() => useBookStore.getState().removeAtPath(props.path)}/>}
+            {(props.value?.desc || props.value?.examples || props.value?.requirements) && <ButtonEx className={clsx(
+                props.value?.options?.forcedIncludes ? 'bi-gear-fill' : 'bi-gear',
                 'w-[24px] h-[24px]',
                 CONTROL_BTN,
             )} onClick={() => {
-                const _path = [...path, 'options', 'forcedIncludes'];
-                useJsonStore.getState().setAtPath(_path, value?.options?.forcedIncludes ? '' : SET_OPTIONS);
+                const _path = [...(props.path), 'options', 'forcedIncludes'];
+                useBookStore.getState().setAtPath(_path, props.value?.options?.forcedIncludes ? '' : SET_OPTIONS);
             }}/>}
         </div>}
     </div>

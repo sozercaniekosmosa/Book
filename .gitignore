@@ -48,3 +48,4 @@ dist-ssr
 /back/iam.json
 /back/.env
 /front/src/components/Book/docs/*
+*~*.*

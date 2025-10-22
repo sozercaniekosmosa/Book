@@ -1,25 +1,17 @@
-import React, {useCallback, useEffect, useRef, useState} from "react";
-import JSONTreeEditor, {CallbackParams, Clb, DefaultIcon} from "./JSONTreeEditor";
+import React, {useCallback, useEffect, useState} from "react";
+import BookTreeEditor, {CallbackParams, Clb} from "./BookTreeEditor.tsx";
 import {structPlot} from "./mapBook/structPlot.ts";
-import {useShallow} from "zustand/react/shallow";
 import TextWrite from "../Auxiliary/TextWrite.tsx";
-import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import clsx from "clsx";
-import {generateUID, getID, getObjectByPath, isEmpty, walkAndFilter} from "../../lib/utils.ts";
-import {toGPT} from "./general.utils.ts";
-import {fnPromptTextHandling, promptWrite} from "./prompts.ts";
-import {eventBus} from "../../lib/events.ts";
-import {template} from "../../lib/strings.ts";
-import {structPlotArc5, structPlotArc8, structPlotArcHero, structPlotArcTravelCase} from "./mapBook/structArcs.ts";
-import {Tooltip} from "../Auxiliary/Tooltip.tsx";
-import {minorCharacter} from "./mapBook/structCharacters.ts";
-import {structScene} from "./mapBook/structScene.ts";
-import DropdownButton from "../Auxiliary/DropdownButton.tsx";
-import data from "./data/data.json" with {type: "json"};
-import {useJsonStore} from "./store/storeBook.ts";
-import dialog from "../Auxiliary/Dialog.tsx";
+import {isEmpty, isEqualString, walkAndFilter} from "../../lib/utils.ts";
+import dataBook from "./data/data.json" with {type: "json"};
+import dataImage from "./data/images.json" with {type: "json"};
+import {useBookStore, useImageStore} from "./store/storeBook.ts";
 import {clbHeader} from "./headers.tsx";
-
+import ButtonEx from "../Auxiliary/ButtonEx.tsx";
+import Modal from "../Auxiliary/ModalWindow.tsx";
+import Dialog from "../Auxiliary/Dialog.tsx";
+import ImageGallery from "../Auxiliary/GalleryImage.tsx";
 
 export const LIST_KEY_NAME = {desc: 'Описание', example: 'Пример', requirements: 'Требования', variants: 'Варианты'};
 
@@ -75,15 +67,16 @@ const TextEditor = ({toWrite, value, parent, className = ''}) => {
 
 export const StoryEditor: React.FC = () => {
 
-    const {change, reset, json, toggleCollapse} = useJsonStore(useShallow((s) => ({
-        change: s.setAtPath,
-        reset: s.reset,
-        json: s.json,
-        toggleCollapse: s.toggleCollapse,
-    })));
+    const [openModal, setOpenModal] = useState(false);
+    const [openConfirm, setOpenConfirm] = useState(false);
+    const [_val, set_val] = useState<any>('');
 
-    // @ts-ignore
-    window.store = useJsonStore.getState()
+    // const {change, reset, json, toggleCollapse} = useBookStore(useShallow((s) => ({
+    //     change: s.setAtPath,
+    //     reset: s.reset,
+    //     json: s.book,
+    //     toggleCollapse: s.toggleCollapse,
+    // })));
 
     const clbEditorValue: Clb = (props) => {
         const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
@@ -105,31 +98,62 @@ export const StoryEditor: React.FC = () => {
         )}/>
     }
 
-    const clbContainer: Clb = (props) => {
+    const clbContainer: Clb = useCallback((props: CallbackParams) => {
+        const isWrap: boolean = Boolean(props.value?.options?.width);
+        const width: string = props.parent?.options?.width;
+        const selfWidth: string = props.value?.options?.selfWidth;
 
-        const {children, collapsed, deep, header, keyName, parent, path, toWrite, value} = props;
-        const isWrap: boolean = Boolean(value?.options?.width);
-        const width: string = parent?.options?.width;
-        const selfWidth: string = value?.options?.selfWidth;
+        if (isEqualString(props.value?.options?.tags, 'image-gen')) {
+            const arrImgBase64 = useImageStore.getState().characters?.[props.keyName];
 
-        if (deep == 0) {
+            return <div className={clsx(LIST_KEY_NAME[props.keyName] && 'mb-1')}>
+                {props.header}
+                <div className={clsx('pl-2 border-l ml-2 ')}>
+                    <div className={clsx('flex flex-wrap')}>
+                        {arrImgBase64?.length && <div className="">
+                            <ImageGallery
+                                images={arrImgBase64}
+                                onRenderImage={(src, index) => (
+                                    <div className="relative">
+                                        <img
+                                            src={src}
+                                            alt={`custom-${index}`}
+                                            className="w-35 h-35 object-cover rounded-sm hover:opacity-80 transition"
+                                        />
+                                        <ButtonEx
+                                            className="!absolute top-0 right-0 bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
+                                            description="Удалить"
+                                            onConfirm={() => {
+                                                useImageStore.getState().removeCharacters(props.keyName + '', index)
+                                            }}/>
+                                    </div>
+                                )}
+                            />
+                        </div>}
+                    </div>
+                    {props.children}
+                </div>
+            </div>
+        }
+
+        if (props.deep == 0) {
             return <div className="">
-                {children}
+                {props.children}
             </div>
         }
 
         if (selfWidth) {
             return <div className="-outline-offset-3 outline-1 outline-gray-200 rounded-[5px] px-2 pt-1 pb-0.5"
                         style={{width: selfWidth}}>
-                {header}{children}
+                {props.header}{props.children}
             </div>
         }
 
         if (isWrap) {
             return <>
-                {header}
+                {props.header}
                 <div className="flex flex-row flex-wrap pl-2 border-l ml-2">
-                    {children}
+                    {props.children}
                 </div>
             </>
         }
@@ -137,31 +161,42 @@ export const StoryEditor: React.FC = () => {
         if (width) {
             return <div className="-outline-offset-3 outline-1 outline-gray-200 rounded-[5px] px-2 pt-1 pb-0.5"
                         style={{width}}>
-                {header}{children}
+                {props.header}{props.children}
             </div>
         }
 
 
-        return <div className={clsx(LIST_KEY_NAME[keyName] && 'mb-1')}>
-            {header}
+        return <div className={clsx(LIST_KEY_NAME[props.keyName] && 'mb-1')}>
+            {props.header}
             <div className={clsx(
                 "pl-2 border-l ml-2"
             )}>
-                {children}
+                {props.children}
             </div>
         </div>
 
         // return null;
-    };
-
+    }, []);
     return (
         <div className="p-4">
 
             <div className="mb-3 flex gap-2">
+                <ButtonEx className="bi-gear" onClick={() => {
+                    useImageStore.getState().addCharacters('Главный герой', '!!!!!')
+                    // setOpenModal(true);
+                }}></ButtonEx>
+
+                <ButtonEx className="bi-upload" onClick={() => {
+                    useImageStore.getState().setStore(dataImage);
+                }}></ButtonEx>
+                <ButtonEx className="bi-floppy" onClick={() => {
+                    console.log(useImageStore.getState());
+                }}></ButtonEx>
+
                 <button
                     className="px-3 py-1 border rounded"
                     onClick={() => {
-                        change([], structPlot);
+                        useBookStore.getState().setAtPath([], structPlot);
                     }}
                 >
                     Reset store
@@ -169,7 +204,7 @@ export const StoryEditor: React.FC = () => {
                 <button
                     className="px-3 py-1 border rounded"
                     onClick={() => {
-                        change([], data);
+                        useBookStore.getState().setAtPath([], dataBook);
                     }}
                 >
                     load
@@ -177,7 +212,7 @@ export const StoryEditor: React.FC = () => {
                 <button
                     className="px-3 py-1 border rounded"
                     onClick={() => {
-                        console.log(useJsonStore.getState().json)
+                        console.log(useBookStore.getState().book);
                     }}
                 >
                     save
@@ -185,20 +220,8 @@ export const StoryEditor: React.FC = () => {
                 <button
                     className="px-3 py-1 border rounded"
                     onClick={() => {
-                        // toggle collapse for root -> items
-                        toggleCollapse(['Основные']);
-                        toggleCollapse(['Вспомогательные']);
-                        toggleCollapse(['Персонажи']);
-                        toggleCollapse(['Сюжетная арка']);
-                    }}
-                >
-                    Toggle "items" collapse
-                </button>
-                <button
-                    className="px-3 py-1 border rounded"
-                    onClick={() => {
 
-                        const dataFilteredEmptyVal = walkAndFilter(useJsonStore.getState().json,
+                        const dataFilteredEmptyVal = walkAndFilter(useBookStore.getState().book,
                             ({parent, key, value, hasChild, arrPath}) => {
 
                                 if (parent?.hasOwnProperty('value') && parent.value == '') return null;
@@ -220,7 +243,7 @@ export const StoryEditor: React.FC = () => {
 
                             if (typeof value != "object") {
                                 // console.log(arrPath, value)
-                                useJsonStore.getState().setAtPath([...arrPath, 'value'], value);
+                                useBookStore.getState().setAtPath([...arrPath, 'value'], value);
                             }
 
                             return value;
@@ -234,11 +257,44 @@ export const StoryEditor: React.FC = () => {
                 <ImageUploadBase64/>
             </div>
 
-            <JSONTreeEditor
+            <BookTreeEditor
                 clbEditorValue={clbEditorValue}
                 clbContainer={clbContainer}
                 clbHeader={clbHeader}
             />
+
+            <div className="flex flex-wrap">
+                {openModal && <Modal show={openModal} onHide={() => setOpenConfirm(true)} autoSize={false}>
+                    <Modal.Header>
+                        <Modal.Title className="text-sm">Сюжет</Modal.Title>
+                    </Modal.Header>
+
+                    {/*<TextWrite*/}
+                    {/*    className="text-black !w-[50vw] h-[40vh] overflow-y-scroll !leading-normal"*/}
+                    {/*    value={_val}*/}
+                    {/*    onChange={(e) => set_val(e.target.value)}*/}
+                    {/*    onBlur={() => setOpenConfirm(true)}*/}
+                    {/*    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {*/}
+                    {/*        if (e.key === "Enter" && e.ctrlKey) {*/}
+                    {/*            // useBookStore.getState().setAtPath([...path, 'value'], _val);*/}
+                    {/*            (e.target as HTMLInputElement).blur();*/}
+                    {/*        }*/}
+                    {/*    }}*/}
+                    {/*    placeholder={value.desc}*/}
+                    {/*/>*/}
+                </Modal>}
+                <Dialog
+                    title="Сохрание" message="Уверены?"
+                    show={openConfirm} setShow={setOpenConfirm}
+                    onConfirm={() => {
+                        // useBookStore.getState().setAtPath([...path, 'value'], _val);
+                        setOpenModal(false);
+                    }}
+                    onUnconfirm={() => setOpenModal(false)}
+                    props={{className: 'modal-sm'}}>
+                </Dialog>
+            </div>
+
 
             <div className="h-[100vh]"></div>
         </div>

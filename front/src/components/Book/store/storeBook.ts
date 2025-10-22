@@ -1,15 +1,17 @@
 import {create} from "zustand";
-import {Path} from "../JSONTreeEditor.tsx";
+import {Path} from "../BookTreeEditor.tsx";
 import {createJSONStorage, persist} from "zustand/middleware";
 import {produce} from "immer";
 import {indexedDBStorage} from "./indexedDBStorage.ts";
+import {immer} from "zustand/middleware/immer";
 
 
 // Enhanced store interface with revision tracking
-interface Store {
-    json: any;
+interface StoreBook {
+    revision: number;
+    forceUpdate: () => void; // Метод для принудительного обновления
+    book: any;
     collapsed: Record<string, boolean>;
-    revision: number; // Добавляем счетчик ревизий для принудительной перерисовки
     setAtPath: (p: Path, v: any) => void;
     mergeAtPath: (p: Path, v: any) => void;
     removeAtPath: (p: Path) => void;
@@ -17,7 +19,6 @@ interface Store {
     toggleCollapse: (p: Path) => void;
     reset: () => void;
     loadFromProp: (d: any) => void;
-    forceUpdate: () => void; // Метод для принудительного обновления
     temp: {},
     setTemp: (v: any) => void;
 }
@@ -47,24 +48,26 @@ const getObjectByPath = (p: (string | number)[], cur: any) => {
     return [cur, k];
 };
 
-// Enhanced Zustand store with proper reactivity
-export const useJsonStore = create<Store>()(
+export const useBookStore = create<StoreBook>()(
     persist(
         (set, get) => ({
-            json: null,
+            book: null,
             collapsed: {},
             revision: 0,
             temp: {},
             setTemp: (v) => set(state => {
                 state.temp = {...state.temp, ...v}
-                return {
-                    revision: state.revision + 1
-                };
+
+                // return {
+                //     revision: state.revision + 1
+                // };
+
+                return state.temp;
             }),
             setAtPath: (p, v) => set(state => {
-                const base = state.json === null || state.json === undefined
+                const base = state.book === null || state.book === undefined
                     ? (typeof p[0] === "number" ? [] : {})
-                    : state.json;
+                    : state.book;
 
                 const next = produce(base, (draft: any) => {
                     if (!p || p.length === 0) return v;
@@ -73,15 +76,15 @@ export const useJsonStore = create<Store>()(
                 });
 
                 return {
-                    json: next,
+                    book: next,
                     revision: state.revision + 1 // Увеличиваем ревизию при каждом изменении
                 };
             }),
 
             mergeAtPath: (p, v) => set(state => {
-                const base = state.json === null || state.json === undefined
+                const base = state.book === null || state.book === undefined
                     ? (typeof p[0] === "number" ? [] : {})
-                    : state.json;
+                    : state.book;
 
                 const next = produce(base, (draft: any) => {
                     if (!p || p.length === 0) return v;
@@ -90,15 +93,15 @@ export const useJsonStore = create<Store>()(
                 });
 
                 return {
-                    json: next,
+                    book: next,
                     revision: state.revision + 1
                 };
             }),
 
             removeAtPath: (p) => set(state => {
-                const base = state.json === null || state.json === undefined
+                const base = state.book === null || state.book === undefined
                     ? (typeof p[0] === "number" ? [] : {})
-                    : state.json;
+                    : state.book;
 
                 const next = produce(base, (draft: any) => {
                     if (!p || p.length === 0) return;
@@ -107,18 +110,18 @@ export const useJsonStore = create<Store>()(
                 });
 
                 return {
-                    json: next,
+                    book: next,
                     revision: state.revision + 1
                 };
             }),
 
             renameKeyAtPath: (p, newKey) => set(state => {
-                const base = state.json === null || state.json === undefined
+                const base = state.book === null || state.book === undefined
                     ? (typeof p[0] === "number" ? [] : {})
-                    : state.json;
+                    : state.book;
 
                 const oldKey = p[p.length - 1];
-                if (oldKey === newKey) return {json: base};
+                if (oldKey === newKey) return {book: base};
 
                 const next = produce(base, (draft: any) => {
                     if (!p || p.length === 0) return newKey;
@@ -127,7 +130,7 @@ export const useJsonStore = create<Store>()(
                 });
 
                 return {
-                    json: next,
+                    book: next,
                     revision: state.revision + 1
                 };
             }),
@@ -141,13 +144,13 @@ export const useJsonStore = create<Store>()(
             })),
 
             reset: () => set({
-                json: null,
+                book: null,
                 collapsed: {},
                 revision: 0
             }),
 
             loadFromProp: (d) => set(state => ({
-                json: d == null ? null : JSON.parse(JSON.stringify(d)),
+                book: d == null ? null : JSON.parse(JSON.stringify(d)),
                 collapsed: {},
                 revision: state.revision + 1
             })),
@@ -161,9 +164,67 @@ export const useJsonStore = create<Store>()(
             storage: createJSONStorage(() => indexedDBStorage),
             partialize: (s) => ({
                 temp: s.temp,
-                json: s.json,
+                book: s.book,
                 collapsed: s.collapsed,
             })
+        }
+    )
+);
+
+export interface StoreImage {
+    revision: number;
+    forceUpdate: () => void; // Метод для принудительного обновления
+
+    characters: Record<string, string[]>;
+    addCharacters: (id: string, imageBase64: string) => void;
+    removeCharacters: (id: string, index: number) => void;
+
+    scenes: Record<string, string[]>
+    addScenes: (id: string, imageBase64: string) => void;
+    removeScenes: (id: string, index: number) => void;
+
+    items: Record<string, string[]>
+    addItems: (id: string, imageBase64: string) => void;
+    removeItems: (id: string, index: number) => void;
+    setStore: (store: any) => void;
+}
+
+
+export const useImageStore = create<StoreImage>()(
+    persist(immer(
+            (set, get) => ({
+                revision: 0,
+                characters: {},
+                scenes: {},
+                items: {},
+                addCharacters: (id, imageBase64) => set(state => {
+                    state.characters[id] = [...state.characters?.[id] ?? [], imageBase64];
+                }),
+                removeCharacters: (id, index) => set(state => {
+                    state.characters[id].splice(index, 1);
+                }),
+                addScenes: (id, imageBase64) => set(state => {
+                    state.scenes[id] =[...state.scenes?.[id] ?? [], imageBase64];
+                }),
+                removeScenes: (id, index) => set(state => {
+                    state.scenes[id].splice(index, 1);
+                }),
+                addItems: (id, imageBase64) => set(state => {
+                    state.items[id] =[...state.items?.[id] ?? [], imageBase64];
+                }),
+                removeItems: (id, index) => set(state => {
+                    state.items[id].splice(index, 1);
+                }),
+                setStore: (store) => set(state => {
+                    return {...state, ...store};
+                }),
+                forceUpdate: () => set(state => ({
+                    revision: state.revision + 1
+                }))
+            })),
+        {
+            name: "images",
+            storage: createJSONStorage(() => indexedDBStorage)
         }
     )
 );

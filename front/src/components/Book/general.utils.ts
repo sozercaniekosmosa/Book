@@ -57,12 +57,19 @@ export const toGPT = async (prompt: string, param?: any) => {
     return typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;
 
 }
-export const toImageGenerate = async ({prompt, source, path}) => {
-    const strSource = JSON.stringify(source, null, 2)
+export const toImageGenerate = async ({prompt}) => {
 
-    const promptBuild = template(prompt, {source: strSource, path});
-    const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite', method: 'image'});
+    try {
+        const {data: text} = await axios.post(glob.hostAPI + 'image', {
+            prompt,
+            arrImage: null,
+        });
 
-    return typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;
+        return text;
+    } catch (e) {
+        console.log(e)
+        return null;
+    }
+
 
 }
