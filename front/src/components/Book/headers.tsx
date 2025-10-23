@@ -9,7 +9,7 @@ import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import clsx from "clsx";
 import {structPlotArc5, structPlotArc8, structPlotArcHero, structPlotArcTravelCase} from "./mapBook/structArcs.ts";
 import {minorCharacter} from "./mapBook/structCharacters.ts";
-import {structScene} from "./mapBook/structScene.ts";
+import {structFrame, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
@@ -17,6 +17,7 @@ import {toGPT, toImageGenerate} from "./general.utils.ts";
 import {fnPromptTextHandling, promptImageCharacter, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
+import {values} from "idb-keyval";
 
 // @ts-ignore
 window.q = useImageStore.getState;
@@ -318,12 +319,13 @@ const PlotArc = (props: CallbackParams) => {
     const isPlotArcItem = tags?.includes('plot-arc-item');
     const isArcEventsItem = tags?.includes('arc-events');
     const isSceneHeader = tags?.includes('scene');
+    const isFrames = isEqualString(tags, 'frames');
 
     let isOptions = LIST_KEY_NAME[props.keyName];
     let name: any = isOptions ?? props.keyName;
     if (isSceneItem) name = null; // Убираем имя заголовка для сцены
 
-    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader))
+    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader || isFrames))
         return <div className="text-nowrap">{name}</div>;
 
     return <>
@@ -344,12 +346,26 @@ const PlotArc = (props: CallbackParams) => {
                         </ButtonEx>)}</>
             </div>
         }
-        {isPlotArcItem &&
-            // Сцены кнопка [+]
+        {isPlotArcItem && <div className="flex flex-row gap-1">
             <ButtonEx className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
                       onClick={() => useBookStore.getState().mergeAtPath(props.path, {['Сцена-' + getID()]: structScene})}/>
-        }
-        {isPlotArcItem && <div className="flex flex-row gap-1">
+            <ButtonEx
+                className={clsx("bi-stack text-[11px]", CONTROL_BTN)}
+                title="Cоздать сцены"
+                description="Cоздать сцены"
+                onConfirm={() => {
+                    const arr = props.value.value.split('\n')
+                    if (Array.isArray(arr)) {
+                        arr.forEach(item => {
+                            let _structScene = JSON.parse(JSON.stringify(structScene));
+                            _structScene['Описание сцены'].value = item;
+                            const nameScene = 'Сцена-' + getID();
+                            useBookStore.getState().mergeAtPath(props.path, {[nameScene]: _structScene});
+                            useBookStore.getState().toggleCollapse([...(props.path), nameScene]);
+                            useBookStore.getState().toggleCollapse([...(props.path), nameScene, '']);
+                        })
+                    }
+                }}/>
             <Tooltip text={"Количество сцен"} direction={"right"} className={clsx(
                 'text-gray-500', CONTROL_BTN)}>
                 <InputNumberEditor
@@ -361,19 +377,6 @@ const PlotArc = (props: CallbackParams) => {
                     }}
                 />
             </Tooltip>
-            <ButtonEx className={clsx("bi-stack text-[11px]", CONTROL_BTN)} onClick={() => {
-                const arr = props.value.value.split('\n')
-                if (Array.isArray(arr)) {
-                    arr.forEach(item => {
-                        let _structScene = JSON.parse(JSON.stringify(structScene));
-                        _structScene['Описание сцены'].value = item;
-                        const nameScene = 'Сцена-' + getID();
-                        useBookStore.getState().mergeAtPath(props.path, {[nameScene]: _structScene});
-                        useBookStore.getState().toggleCollapse([...(props.path), nameScene]);
-                        useBookStore.getState().toggleCollapse([...(props.path), nameScene, '']);
-                    })
-                }
-            }}/>
         </div>}
         {isArcEventsItem && <div className="flex flex-row gap-1">
             <Tooltip text={"Количество событий на сцене"} direction={"right"} className={clsx(
@@ -387,7 +390,34 @@ const PlotArc = (props: CallbackParams) => {
                     }}
                 />
             </Tooltip>
+
         </div>}
+        {isFrames && <>
+            <ButtonEx
+                title="Добавить кадр"
+                className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
+                onClick={() => {
+                    useBookStore.getState().mergeAtPath(props.path, {['Кадр-' + getID()]: structFrame});
+                    // useBookStore.getState().mergeAtPath(props.path, {['Сцена-' + getID()]: structScene});
+                }}/>
+            <ButtonEx
+                className={clsx("bi-stack text-[11px] w-[24px] h-[24px]", CONTROL_BTN)}
+                title="Cоздать кадры"
+                description="Cоздать кадры"
+                onConfirm={() => {
+                    // const arr = props.value.value.split('\n')
+                    // if (Array.isArray(arr)) {
+                    //     arr.forEach(item => {
+                    //         let _structScene = JSON.parse(JSON.stringify(structScene));
+                    //         _structScene['Описание сцены'].value = item;
+                    //         const nameScene = 'Сцена-' + getID();
+                    //         useBookStore.getState().mergeAtPath(props.path, {[nameScene]: _structScene});
+                    //         useBookStore.getState().toggleCollapse([...(props.path), nameScene]);
+                    //         useBookStore.getState().toggleCollapse([...(props.path), nameScene, '']);
+                    //     })
+                    // }
+                }}/>
+        </>}
         {isSceneHeader && <SceneHeader {...props}/>}
     </>;
 };

@@ -33,7 +33,6 @@ export const structScene = {
     },
     'Детали окружения': {
         options: {excludes: 'toggle', includes: 'value'},
-        requirements: 'Подробно опиши окружение, перечисли всех персонажей (отношение если это важно) и предметы (рамер и положение) в сцене',
         desc:
             'Сергей стоял у окна задумчиво разглядывая старую рукопись ' +
             'Джонсон (отец Билли) вошел в холл ' +
@@ -42,8 +41,8 @@ export const structScene = {
             'природа, деревья, река, животные, ' +
             'освещение (сумерки, яркий свет, свечи), ' +
             'социальная обстановка (богатый квартал, трущобы, замок).',
+        requirements: 'Подробно опиши окружение, перечисли всех персонажей (отношение если это важно) и предметы (рамер и положение) в сцене',
         value: ''
-
     },
     'События': {
         options: {excludes: 'toggle desc requirements example', tags: 'arc-events', quantEvents: 5},
@@ -73,5 +72,15 @@ export const structScene = {
             '6. Инцидент с бокалом:\n' +
             '[Официант] ставит бокал с треснувшим краем перед героиней: С вашего позволения...\n',
         value: ''
+    },
+    'Кадры': {
+        options: {excludes: 'desc requirements example', tags: 'frames'},
+        desc: '',
+        requirements: ''
     }
 };
+
+export const structFrame = {
+    options: {excludes: 'desc requirements example', tags: 'frame deletable'},
+    value: ''
+}
