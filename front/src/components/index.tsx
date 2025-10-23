@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React, {UIEventHandler, useEffect, useRef, useState} from 'react'
 import './style.css'
 import ProgressBar from './ProgressBar/ProgressBar';
 import {eventBus} from "../lib/events.ts";
@@ -8,15 +8,25 @@ import {Tab, Tabs} from './Auxiliary/Tabs.tsx';
 import {ERR, LOG, OK, WARN} from "./PopupMessage/PopupMessage.tsx";
 import Group from "./Auxiliary/Group.tsx";
 import {StoryEditor} from "./Book/BookStory.tsx";
-import {useBookStore} from "./Book/store/storeBook.ts";
+import {useBookStore, useTempStore} from "./Book/store/storeBook.ts";
+import {useShallow} from "zustand/react/shallow";
 
 function Index() {
     const [progress, setProgress] = useState(0)
     const [arrData, setArrData] = useState(['Элемент — 1', 'Элемент — 2', 'Элемент — 3'])
     const [newNode, setNewNode] = useState(null)
     const refStoryEditor = useRef();
+    // const {isHydrated} = useBookStore(useShallow((s) => ({isHydrated: s.isHydrated})));
+    // @ts-ignore
+    const {yScroll, setValue} = useTempStore(useShallow((s) => ({yScroll: s.yScroll, setValue: s.setValue})));
+
+    // @ts-ignore
+    // useEffect(() => refStoryEditor?.current?.scrollTo?.(0, useBookStore.getState().temp.yScroll), [isHydrated]);
 
     useEffect(() => {
+
+        // @ts-ignore
+        setTimeout(() => refStoryEditor?.current?.scrollTo?.(0, yScroll), 200);
 
         const socketHandler = ({type, data}) => {
             if (type === 'progress') setProgress(data)
@@ -37,26 +47,13 @@ function Index() {
         eventBus.addEventListener('message-socket', socketHandler);
         eventBus.addEventListener('message-local', localHandler)
 
+        // setTimeout(() => isInit = true, 50);
+
         return () => {
             eventBus.removeEventListener('message-socket', socketHandler);
             eventBus.removeEventListener('message-local', localHandler);
         }
     }, [])
-
-    useEffect(() => {
-
-        setTimeout(() => {
-            // @ts-ignore
-            // debugger
-            console.log(useBookStore?.getState()?.temp?.['yScroll'])
-            let a = useBookStore?.getState()?.temp?.['yScroll'];
-
-            // @ts-ignore
-            refStoryEditor?.current?.scrollTo(0, a)
-        }, 0)
-
-        //
-    }, [refStoryEditor]);
 
     return (
         <div className="flex flex-col h-full">
@@ -72,11 +69,8 @@ function Index() {
             <Tabs defaultActiveKey="storybook" className="mb-1 h-full">
 
                 <Tab eventKey="storybook" title="storybook" className="">
-                    <div className="h-full p-1 text-[14px] overflow-y-scroll" ref={refStoryEditor} onScroll={e => {
-                        // console.log(e.target.scrollTop);
-                        // @ts-ignore
-                        const yScroll = e.target.scrollTop
-                        useBookStore.getState().setTemp({yScroll})
+                    <div className="h-full p-1 text-[14px] overflow-y-scroll" ref={refStoryEditor} onScroll={(e:any) => {
+                        setValue('yScroll', e.target.scrollTop);
                     }}>
                         <StoryEditor/>
                     </div>

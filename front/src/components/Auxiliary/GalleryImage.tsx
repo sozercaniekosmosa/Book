@@ -39,7 +39,8 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({images, onRenderImage}) => {
     return (
         <div className="w-full">
             {/* Сетка миниатюр */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {/*<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">*/}
+            <div className="flex flex-wrap gap-3">
                 {images.map((src, i) => (
                     <div
                         key={i}

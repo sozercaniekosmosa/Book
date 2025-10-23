@@ -80,7 +80,11 @@ export async function getImageOpenAPI(prompt: string, arrImage: string[], api_ke
 
         const response = await openai.chat.completions.create({
             model: model,
-            messages: [{role: 'user', content}]
+            messages: [{role: 'user', content}],
+            /*@ts-ignore*/
+            image_config: {
+                aspect_ratio: '4:3', // Например: '16:9', '1:1', '9:16'
+            }
         });
 
         const message = response.choices[0].message;

@@ -8,6 +8,7 @@ import {immer} from "zustand/middleware/immer";
 
 // Enhanced store interface with revision tracking
 interface StoreBook {
+    isHydrated: boolean;
     revision: number;
     forceUpdate: () => void; // Метод для принудительного обновления
     book: any;
@@ -51,6 +52,7 @@ const getObjectByPath = (p: (string | number)[], cur: any) => {
 export const useBookStore = create<StoreBook>()(
     persist(
         (set, get) => ({
+            isHydrated: false,
             book: null,
             collapsed: {},
             revision: 0,
@@ -163,10 +165,18 @@ export const useBookStore = create<StoreBook>()(
             name: "story.v2",
             storage: createJSONStorage(() => indexedDBStorage),
             partialize: (s) => ({
+                isHydrated: false,
                 temp: s.temp,
                 book: s.book,
                 collapsed: s.collapsed,
-            })
+            }),
+            onRehydrateStorage: () => (state, error) => {
+                if (!error) {
+                    setTimeout(() => {
+                        useBookStore.setState({isHydrated: true});
+                    }, 200);
+                }
+            },
         }
     )
 );
@@ -175,17 +185,10 @@ export interface StoreImage {
     revision: number;
     forceUpdate: () => void; // Метод для принудительного обновления
 
-    characters: Record<string, string[]>;
-    addCharacters: (id: string, imageBase64: string) => void;
-    removeCharacters: (id: string, index: number) => void;
+    images: Record<string, string[]>;
+    addImages: (id: string, imageBase64: string) => void;
+    removeImages: (id: string, index: number) => void;
 
-    scenes: Record<string, string[]>
-    addScenes: (id: string, imageBase64: string) => void;
-    removeScenes: (id: string, index: number) => void;
-
-    items: Record<string, string[]>
-    addItems: (id: string, imageBase64: string) => void;
-    removeItems: (id: string, index: number) => void;
     setStore: (store: any) => void;
 }
 
@@ -194,26 +197,12 @@ export const useImageStore = create<StoreImage>()(
     persist(immer(
             (set, get) => ({
                 revision: 0,
-                characters: {},
-                scenes: {},
-                items: {},
-                addCharacters: (id, imageBase64) => set(state => {
-                    state.characters[id] = [...state.characters?.[id] ?? [], imageBase64];
+                images: {},
+                addImages: (id, imageBase64) => set(state => {
+                    state.images[id] = [...state.images?.[id] ?? [], imageBase64];
                 }),
-                removeCharacters: (id, index) => set(state => {
-                    state.characters[id].splice(index, 1);
-                }),
-                addScenes: (id, imageBase64) => set(state => {
-                    state.scenes[id] =[...state.scenes?.[id] ?? [], imageBase64];
-                }),
-                removeScenes: (id, index) => set(state => {
-                    state.scenes[id].splice(index, 1);
-                }),
-                addItems: (id, imageBase64) => set(state => {
-                    state.items[id] =[...state.items?.[id] ?? [], imageBase64];
-                }),
-                removeItems: (id, index) => set(state => {
-                    state.items[id].splice(index, 1);
+                removeImages: (id, index) => set(state => {
+                    state.images[id].splice(index, 1);
                 }),
                 setStore: (store) => set(state => {
                     return {...state, ...store};
@@ -228,3 +217,23 @@ export const useImageStore = create<StoreImage>()(
         }
     )
 );
+
+export interface StoreTemp {
+    setValue: (key: string, value: any) => void;
+}
+
+export const useTempStore = create<StoreTemp>()(
+    persist(immer(
+            (set, get) => ({
+                setValue: (key: string, value: any) => set(state => {
+                    state[key] = value;
+                }),
+            })),
+        {
+            name: "temp"
+        }
+    )
+);
+
+// @ts-ignore
+window.useTempStore = useTempStore;

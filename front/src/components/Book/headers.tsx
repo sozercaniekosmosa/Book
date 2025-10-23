@@ -14,7 +14,7 @@ import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
 import {toGPT, toImageGenerate} from "./general.utils.ts";
-import {fnPromptTextHandling, promptImageCharacter, promptWrite} from "./prompts.ts";
+import {fnPromptTextHandling, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import {values} from "idb-keyval";
@@ -181,6 +181,27 @@ const SceneHeader = (props: CallbackParams) => {
             }}
             placeholder={sceneDesc}
         />
+        {<ButtonEx className={clsx('bi-image w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
+            let book = useBookStore.getState().book;
+
+            console.log(props)
+
+            const arrPath = [
+                [...props.path, 'Описание сцены'],
+                // [...props.path, 'Детали окружения']
+            ]
+
+            const arr = extractCommonValues(arrPath as string[][]);
+
+            let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+            // let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
+
+            const prompt = template(promptImageScene, {styleGeneral, desc: arr.join('\n')});
+
+            const res = await toImageGenerate({prompt});
+
+            useImageStore.getState().addImages(props.keyName + '', res)
+        }}/>}
     </>
 }
 const MinorCharacterHeader = (props: CallbackParams) => {
@@ -283,7 +304,7 @@ const Characters = (props: CallbackParams) => {
                           onClick={() => useBookStore.getState().mergeAtPath(props.path, {['Персонаж-' + getID()]: minorCharacter})}/>
             </>}
         {isMinorCharacter && <MinorCharacterHeader {...props}/>}
-        {isImageGen && <ButtonEx className="bi-image w-[24px] h-[24px]" onAction={async () => {
+        {isImageGen && <ButtonEx className={clsx('bi-image w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
             let book = useBookStore.getState().book;
 
             console.log(props.keyName)
@@ -303,9 +324,7 @@ const Characters = (props: CallbackParams) => {
 
             const res = await toImageGenerate({prompt});
 
-            useImageStore.getState().addCharacters(props.keyName + '', res)
-
-            console.log(res);
+            useImageStore.getState().addImages(props.keyName + '', res)
         }}/>}
     </>;
 };

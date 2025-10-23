@@ -12,6 +12,7 @@ import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import Dialog from "../Auxiliary/Dialog.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
+import {useShallow} from "zustand/react/shallow";
 
 export const LIST_KEY_NAME = {desc: 'Описание', example: 'Пример', requirements: 'Требования', variants: 'Варианты'};
 
@@ -71,12 +72,10 @@ export const StoryEditor: React.FC = () => {
     const [openConfirm, setOpenConfirm] = useState(false);
     const [_val, set_val] = useState<any>('');
 
-    // const {change, reset, json, toggleCollapse} = useBookStore(useShallow((s) => ({
-    //     change: s.setAtPath,
-    //     reset: s.reset,
-    //     json: s.book,
-    //     toggleCollapse: s.toggleCollapse,
-    // })));
+    const {book} = useBookStore(useShallow((s) => ({book: s.book})));
+    useEffect(() => {
+        !book && useBookStore.getState().setAtPath([], structPlot);
+    }, [book]);
 
     const clbEditorValue: Clb = (props) => {
         const {children, deep, header, keyName, parent, path, toWrite, value, collapsed} = props;
@@ -104,13 +103,20 @@ export const StoryEditor: React.FC = () => {
         const selfWidth: string = props.value?.options?.selfWidth;
 
         if (isEqualString(props.value?.options?.tags ?? '', 'image-gen')) {
-            const arrImgBase64 = useImageStore.getState().characters?.[props.keyName];
+            // debugger
+            let arrImgBase64: any, imgDetail: any;
+            if (props.path.includes('Персонажи'))
+                imgDetail = {type: 'characters', method: 'removeCharacters'};
+            if (props.path.includes('Сюжетная арка'))
+                imgDetail = {type: 'scenes', method: 'removeScenes'};
+
+            arrImgBase64 = useImageStore.getState().images?.[props.keyName];
 
             return <div className={clsx(LIST_KEY_NAME[props.keyName] && 'mb-1')}>
                 {props.header}
                 <div className={clsx('pl-2 border-l ml-2 ')}>
                     <div className={clsx('flex flex-wrap')}>
-                        {arrImgBase64?.length && <div className="">
+                        {arrImgBase64?.length > 0 && <div className="py-1">
                             <ImageGallery
                                 images={arrImgBase64}
                                 onRenderImage={(src, index) => (
@@ -124,7 +130,7 @@ export const StoryEditor: React.FC = () => {
                                             className="!absolute top-0 right-0 bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
                                             description="Удалить"
                                             onConfirm={() => {
-                                                useImageStore.getState().removeCharacters(props.keyName + '', index)
+                                                useImageStore.getState().removeImages(props.keyName + '', index)
                                             }}/>
                                     </div>
                                 )}
@@ -182,7 +188,7 @@ export const StoryEditor: React.FC = () => {
 
             <div className="mb-3 flex gap-2">
                 <ButtonEx className="bi-gear" onClick={() => {
-                    useImageStore.getState().addCharacters('Главный герой', '!!!!!')
+                    useImageStore.getState().addImages('Главный герой', '!!!!!')
                     // setOpenModal(true);
                 }}></ButtonEx>
 
