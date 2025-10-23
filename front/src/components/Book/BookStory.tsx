@@ -103,7 +103,7 @@ export const StoryEditor: React.FC = () => {
         const width: string = props.parent?.options?.width;
         const selfWidth: string = props.value?.options?.selfWidth;
 
-        if (isEqualString(props.value?.options?.tags, 'image-gen')) {
+        if (isEqualString(props.value?.options?.tags ?? '', 'image-gen')) {
             const arrImgBase64 = useImageStore.getState().characters?.[props.keyName];
 
             return <div className={clsx(LIST_KEY_NAME[props.keyName] && 'mb-1')}>

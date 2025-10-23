@@ -225,11 +225,24 @@ export const getCodeParam = (code: string) => {
     return resArr;
 }
 
-export const isEqualString = (str: string, sub: string) => {
-    const escaped = sub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Экранируем специальные символы в подстроке
-    const regex = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'u');
-    return regex.test(str);
+// export const isEqualString = (str: string, sub: string) => {
+//     const escaped = sub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Экранируем специальные символы в подстроке
+//     const regex = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'u');
+//     return regex.test(str);
+// };
+export const isEqualString = (str, sub) => {
+    if (!sub) return false;
+    str = str?.toLowerCase() ?? '';
+    sub = sub?.toLowerCase() ?? '';
+    const isWord = c => /[A-Za-z0-9_-]/.test(c);
+    for (let i = str.indexOf(sub); i !== -1; i = str.indexOf(sub, i + 1)) {
+        const b = i === 0 || !isWord(str[i - 1]);
+        const a = i + sub.length === str.length || !isWord(str[i + sub.length]);
+        if (b && a) return true;
+    }
+    return false;
 };
+
 
 export interface WalkAndFilterCallback {
     parent: any | null;

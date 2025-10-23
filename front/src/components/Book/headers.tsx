@@ -314,7 +314,7 @@ const PlotArc = (props: CallbackParams) => {
 
     const tags = props.value?.options?.tags;
     const isSceneItem = tags?.includes('scene');
-    const isPlotArc = tags?.includes('сюжетная-арка');
+    const isPlotArc = isEqualString(tags, 'plot-arc');
     const isPlotArcItem = tags?.includes('plot-arc-item');
     const isArcEventsItem = tags?.includes('arc-events');
     const isSceneHeader = tags?.includes('scene');
