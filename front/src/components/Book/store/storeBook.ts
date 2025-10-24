@@ -4,6 +4,7 @@ import {createJSONStorage, persist} from "zustand/middleware";
 import {produce} from "immer";
 import {indexedDBStorage} from "./indexedDBStorage.ts";
 import {immer} from "zustand/middleware/immer";
+import {convertBase64ImageFormat} from "../general.utils.ts";
 
 
 // Enhanced store interface with revision tracking
@@ -186,7 +187,7 @@ export interface StoreImage {
     forceUpdate: () => void; // Метод для принудительного обновления
 
     images: Record<string, string[]>;
-    addImages: (id: string, imageBase64: string) => void;
+    addImages: (id: string, imageBase64: string) => Promise<void>;
     removeImages: (id: string, index: number) => void;
 
     setStore: (store: any) => void;
@@ -198,9 +199,14 @@ export const useImageStore = create<StoreImage>()(
             (set, get) => ({
                 revision: 0,
                 images: {},
-                addImages: (id, imageBase64) => set(state => {
-                    state.images[id] = [...state.images?.[id] ?? [], imageBase64];
-                }),
+                addImages: async (id, imageBase64) => {
+
+                    const jpegBase64 = await convertBase64ImageFormat(imageBase64, 'jpeg', 'white');
+
+                    set(state => {
+                        state.images[id] = [...state.images?.[id] ?? [], jpegBase64];
+                    });
+                },
                 removeImages: (id, index) => set(state => {
                     state.images[id].splice(index, 1);
                 }),

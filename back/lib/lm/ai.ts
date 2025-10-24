@@ -52,7 +52,7 @@ export async function arliGPT(prompt, text, arliai_api_key) {
     }
 }
 
-export async function getImageOpenAPI(prompt: string, arrImage: string[], api_key: string) {
+export async function getImageOpenAPI(prompt: string, arrImage: string[], param: any, api_key: string) {
 
     try {
         if (arrImage?.length > 3) throw 'Too many images > 3';
@@ -62,7 +62,8 @@ export async function getImageOpenAPI(prompt: string, arrImage: string[], api_ke
             apiKey: api_key,
         });
 
-        const model = "google/gemini-2.5-flash-image-preview"
+        const model = "google/gemini-2.5-flash-image"
+        // const model = "google/gemini-2.5-flash-image-preview"
 
         let content: any = [
             {
@@ -78,13 +79,16 @@ export async function getImageOpenAPI(prompt: string, arrImage: string[], api_ke
             }))]
 
 
+        let image_config: any = {aspect_ratio: param?.aspect_ratio ?? '1:1'};
+
         const response = await openai.chat.completions.create({
             model: model,
             messages: [{role: 'user', content}],
             /*@ts-ignore*/
-            image_config: {
-                aspect_ratio: '4:3', // Например: '16:9', '1:1', '9:16'
-            }
+            image_config
+            // image_config: {
+            //     aspect_ratio: '4:3', // Например: '16:9', '1:1', '9:16'
+            // }
         });
 
         const message = response.choices[0].message;

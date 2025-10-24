@@ -103,14 +103,7 @@ export const StoryEditor: React.FC = () => {
         const selfWidth: string = props.value?.options?.selfWidth;
 
         if (isEqualString(props.value?.options?.tags ?? '', 'image-gen')) {
-            // debugger
-            let arrImgBase64: any, imgDetail: any;
-            if (props.path.includes('Персонажи'))
-                imgDetail = {type: 'characters', method: 'removeCharacters'};
-            if (props.path.includes('Сюжетная арка'))
-                imgDetail = {type: 'scenes', method: 'removeScenes'};
-
-            arrImgBase64 = useImageStore.getState().images?.[props.keyName];
+            const arrImgBase64 = useImageStore.getState().images?.[props.keyName];
 
             return <div className={clsx(LIST_KEY_NAME[props.keyName] && 'mb-1')}>
                 {props.header}
@@ -124,7 +117,7 @@ export const StoryEditor: React.FC = () => {
                                         <img
                                             src={src}
                                             alt={`custom-${index}`}
-                                            className="w-35 h-35 object-cover rounded-sm hover:opacity-80 transition"
+                                            className="h-35 object-cover rounded-sm hover:opacity-80 transition"
                                         />
                                         <ButtonEx
                                             className="!absolute top-0 right-0 bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
@@ -188,7 +181,7 @@ export const StoryEditor: React.FC = () => {
 
             <div className="mb-3 flex gap-2">
                 <ButtonEx className="bi-gear" onClick={() => {
-                    useImageStore.getState().addImages('Главный герой', '!!!!!')
+                    // useImageStore.getState().addImages('Главный герой', '!!!!!')
                     // setOpenModal(true);
                 }}></ButtonEx>
 

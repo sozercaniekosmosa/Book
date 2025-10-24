@@ -26,7 +26,7 @@ function Index() {
     useEffect(() => {
 
         // @ts-ignore
-        setTimeout(() => refStoryEditor?.current?.scrollTo?.(0, yScroll), 200);
+        setTimeout(() => refStoryEditor?.current?.scrollTo?.(0, yScroll), 800);
 
         const socketHandler = ({type, data}) => {
             if (type === 'progress') setProgress(data)

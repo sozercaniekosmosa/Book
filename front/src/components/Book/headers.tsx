@@ -13,11 +13,16 @@ import {structFrame, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {toGPT, toImageGenerate} from "./general.utils.ts";
+import {
+    convertBase64ImageFormat,
+    mergeBase64Images,
+    openBase64ImageInNewTab,
+    toGPT,
+    toImageGenerate
+} from "./general.utils.ts";
 import {fnPromptTextHandling, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
-import {values} from "idb-keyval";
 
 // @ts-ignore
 window.q = useImageStore.getState;
@@ -188,7 +193,7 @@ const SceneHeader = (props: CallbackParams) => {
 
             const arrPath = [
                 [...props.path, 'Описание сцены'],
-                // [...props.path, 'Детали окружения']
+                [...props.path, 'Детали окружения']
             ]
 
             const arr = extractCommonValues(arrPath as string[][]);
@@ -198,9 +203,48 @@ const SceneHeader = (props: CallbackParams) => {
 
             const prompt = template(promptImageScene, {styleGeneral, desc: arr.join('\n')});
 
-            const res = await toImageGenerate({prompt});
+            const res = await toImageGenerate({prompt, param: {aspect_ratio: '4:3'}});
 
-            useImageStore.getState().addImages(props.keyName + '', res)
+            await useImageStore.getState().addImages(props.keyName + '', res)
+        }}/>}
+        {<ButtonEx className={clsx('bi-activity w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
+            let book = useBookStore.getState().book;
+
+            // const arrImgList = Object.entries(useImageStore.getState().images);
+            // for (let i = 0; i < arrImgList.length; i++) {
+            //     const [key, arrBase64] = arrImgList[i];
+            //     for (let j = 0; j < arrBase64.length; j++) {
+            //         const imageBase64 = arrBase64[j];
+            //         useImageStore.getState().removeImages(key + '', j);
+            //         const jpegBase64 = await convertBase64ImageFormat(imageBase64, 'jpeg', 'white');
+            //         useImageStore.getState().addImages(key + '', jpegBase64);
+            //     }
+            //
+            // }
+
+
+            // const arrImgBase64 = useImageStore.getState().images?.[props.keyName];
+            // const img = await mergeBase64Images({images : arrImgBase64, gap : 10, backgroundColor : 'black', scaleFactor : 0.5});
+            // console.log(img)
+            // openBase64ImageInNewTab(img);
+
+            // openBase64ImageInNewTab(arrImgBase64[0]);
+
+            // const arrPath = [
+            //     [...props.path, 'Описание сцены'],
+            //     [...props.path, 'Детали окружения']
+            // ]
+            //
+            // const arr = extractCommonValues(arrPath as string[][]);
+            //
+            // let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+            // // let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
+            //
+            // const prompt = template(promptImageScene, {styleGeneral, desc: arr.join('\n')});
+            //
+            // const res = await toImageGenerate({prompt, param: {aspect_ratio: '4:3'}});
+            //
+            // useImageStore.getState().addImages(props.keyName + '', res)
         }}/>}
     </>
 }
@@ -263,9 +307,10 @@ const Characters = (props: CallbackParams) => {
             <ButtonEx className={clsx("bi-stack w-[24px] h-[24px] text-[11px]", CONTROL_BTN)} onClick={() => {
                 let book = useBookStore.getState().book;
                 let arr: string[] = props.value.value.split('\n');
-                const arrExistCharacter1 = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя полное"].value)
+                // const arrExistCharacter1 = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя полное"].value)
                 const arrExistCharacter2 = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
-                const arrExistCharacter = [...arrExistCharacter1, ...arrExistCharacter2];
+                // const arrExistCharacter = [...arrExistCharacter1, ...arrExistCharacter2];
+                const arrExistCharacter = [...arrExistCharacter2];
 
                 if (Array.isArray(arr)) {
                     arr = arr.filter(characterDesc => {
@@ -322,9 +367,9 @@ const Characters = (props: CallbackParams) => {
 
             const prompt = template(promptImageCharacter, {styleGeneral, styleCharacter, desc: arr.join('\n')});
 
-            const res = await toImageGenerate({prompt});
+            const res = await toImageGenerate({prompt, param: {aspect_ratio: '3:4'}});
 
-            useImageStore.getState().addImages(props.keyName + '', res)
+            await useImageStore.getState().addImages(props.keyName + '', res)
         }}/>}
     </>;
 };
