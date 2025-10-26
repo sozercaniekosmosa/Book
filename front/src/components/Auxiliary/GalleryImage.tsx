@@ -4,9 +4,10 @@ import {motion, AnimatePresence} from "framer-motion";
 type ImageGalleryProps = {
     images: string[];
     onRenderImage?: (src: string, index: number) => React.ReactNode;
+    isDblClick?: boolean;
 };
 
-const ImageGallery: React.FC<ImageGalleryProps> = ({images, onRenderImage}) => {
+const ImageGallery = ({images, onRenderImage, isDblClick = false}: ImageGalleryProps) => {
     const [currentIndex, setCurrentIndex] = useState<number | null>(null);
 
     const close = useCallback(() => setCurrentIndex(null), []);
@@ -39,15 +40,16 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({images, onRenderImage}) => {
     return (
         <div className="w-full">
             {/* Сетка миниатюр */}
-            {/*<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">*/}
             <div className="flex flex-wrap gap-3">
                 {images.map((src, i) => (
                     <div
                         key={i}
                         className="cursor-pointer overflow-hidden"
+                        onDoubleClick={(e) => {
+                            isDblClick && e.target["tagName"] == 'IMG' && setCurrentIndex(i);
+                        }}
                         onClick={(e) => {
-                            if (e.target["tagName"] == 'IMG')
-                                setCurrentIndex(i);
+                            !isDblClick && e.target["tagName"] == 'IMG' && setCurrentIndex(i);
                         }}
                     >
                         {onRenderImage ? (

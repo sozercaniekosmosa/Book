@@ -186,6 +186,26 @@ export const arrMoveItem = (arr, fromIndex, toIndex) => {
 };
 
 /**
+ * получает значение из объекта по заданому пути
+ * @param obj - объект
+ * @param arrPath - ['key1', 'key2', 'key3', ... ]
+ */
+export const getValueByPath = (obj: any, arrPath: string[], clbEmpty?: (obj: any, key: string, indexPath: number) => void): any => {
+    for (let i = 0; i < arrPath.length - 1; i++) {
+        const k = arrPath[i];
+        if (obj?.[k]) {
+            obj = obj[k];
+        } else {
+            if (clbEmpty) {
+                clbEmpty(obj, k, i);
+                obj = obj[k];
+            } else
+                return [null, null];
+        }
+    }
+    return obj[arrPath[arrPath.length - 1]];
+}
+/**
  * получает элемент из объекта по заданому пути
  * @param obj - объект
  * @param arrPath - ['key1', 'key2', 'key3', ... ]

@@ -1,8 +1,15 @@
 // ~noinspection JSUnusedLocalSymbols
 // ~@ts-nocheck
-import {generateUID, getID, getObjectByPath, isEmpty, isEqualString, walkAndFilter} from "../../lib/utils.ts";
+import {
+    generateUID,
+    getObjectByPath,
+    getValueByPath,
+    isEmpty,
+    isEqualString,
+    walkAndFilter
+} from "../../lib/utils.ts";
 import {useBookStore, useImageStore} from "./store/storeBook.ts";
-import React, {useCallback, useEffect, useRef, useState} from "react";
+import React, {Fragment, useCallback, useEffect, useRef, useState} from "react";
 import {CallbackParams, Clb, DefaultIcon} from "./BookTreeEditor.tsx";
 import TextWrite from "../Auxiliary/TextWrite.tsx";
 import ButtonEx from "../Auxiliary/ButtonEx.tsx";
@@ -13,16 +20,16 @@ import {structFrame, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {
-    convertBase64ImageFormat,
-    mergeBase64Images,
-    openBase64ImageInNewTab,
-    toGPT,
-    toImageGenerate
-} from "./general.utils.ts";
+import {mergeBase64Images, openBase64ImageInNewTab, toGPT, toImageGenerate} from "./general.utils.ts";
 import {fnPromptTextHandling, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
+import Modal from "../Auxiliary/ModalWindow.tsx";
+import ImageGallery from "../Auxiliary/GalleryImage.tsx";
+import {BsFillPeopleFill} from "react-icons/bs";
+import {RiImageAiFill, RiLandscapeFill} from "react-icons/ri";
+import Checkbox from "../Auxiliary/Checkbox.tsx";
+import {useShallow} from "zustand/react/shallow";
 
 // @ts-ignore
 window.q = useImageStore.getState;
@@ -30,6 +37,12 @@ window.q = useImageStore.getState;
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
 const SET_OPTIONS = 'options desc example requirements variants';
 let total = 0;
+
+const getFreeIndex = (list: Record<string, any>, strPrefix: string) => {
+    for (let i = 0; i < 1000; i++)
+        if (!list[strPrefix + i]) return strPrefix + i;
+    return 0;
+};
 
 const extractCommonValues = (arrPath: string[][]) =>
     arrPath.map((path: string[]) => {
@@ -50,6 +63,7 @@ const applyGPTResult = (resultStruct: any, listPathSrc: {}) =>
             if (typeof val != 'string') return value;
 
             const path = listPathSrc[id];
+            if (!path) return value;
             const [obj, _] = getObjectByPath(useBookStore.getState().book, path);
             if (obj?.hasOwnProperty('value')) {
                 useBookStore.getState().setAtPath(path, val);
@@ -186,66 +200,6 @@ const SceneHeader = (props: CallbackParams) => {
             }}
             placeholder={sceneDesc}
         />
-        {<ButtonEx className={clsx('bi-image w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
-            let book = useBookStore.getState().book;
-
-            console.log(props)
-
-            const arrPath = [
-                [...props.path, 'Описание сцены'],
-                [...props.path, 'Детали окружения']
-            ]
-
-            const arr = extractCommonValues(arrPath as string[][]);
-
-            let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
-            // let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
-
-            const prompt = template(promptImageScene, {styleGeneral, desc: arr.join('\n')});
-
-            const res = await toImageGenerate({prompt, param: {aspect_ratio: '4:3'}});
-
-            await useImageStore.getState().addImages(props.keyName + '', res)
-        }}/>}
-        {<ButtonEx className={clsx('bi-activity w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
-            let book = useBookStore.getState().book;
-
-            // const arrImgList = Object.entries(useImageStore.getState().images);
-            // for (let i = 0; i < arrImgList.length; i++) {
-            //     const [key, arrBase64] = arrImgList[i];
-            //     for (let j = 0; j < arrBase64.length; j++) {
-            //         const imageBase64 = arrBase64[j];
-            //         useImageStore.getState().removeImages(key + '', j);
-            //         const jpegBase64 = await convertBase64ImageFormat(imageBase64, 'jpeg', 'white');
-            //         useImageStore.getState().addImages(key + '', jpegBase64);
-            //     }
-            //
-            // }
-
-
-            // const arrImgBase64 = useImageStore.getState().images?.[props.keyName];
-            // const img = await mergeBase64Images({images : arrImgBase64, gap : 10, backgroundColor : 'black', scaleFactor : 0.5});
-            // console.log(img)
-            // openBase64ImageInNewTab(img);
-
-            // openBase64ImageInNewTab(arrImgBase64[0]);
-
-            // const arrPath = [
-            //     [...props.path, 'Описание сцены'],
-            //     [...props.path, 'Детали окружения']
-            // ]
-            //
-            // const arr = extractCommonValues(arrPath as string[][]);
-            //
-            // let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
-            // // let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
-            //
-            // const prompt = template(promptImageScene, {styleGeneral, desc: arr.join('\n')});
-            //
-            // const res = await toImageGenerate({prompt, param: {aspect_ratio: '4:3'}});
-            //
-            // useImageStore.getState().addImages(props.keyName + '', res)
-        }}/>}
     </>
 }
 const MinorCharacterHeader = (props: CallbackParams) => {
@@ -307,10 +261,7 @@ const Characters = (props: CallbackParams) => {
             <ButtonEx className={clsx("bi-stack w-[24px] h-[24px] text-[11px]", CONTROL_BTN)} onClick={() => {
                 let book = useBookStore.getState().book;
                 let arr: string[] = props.value.value.split('\n');
-                // const arrExistCharacter1 = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя полное"].value)
-                const arrExistCharacter2 = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
-                // const arrExistCharacter = [...arrExistCharacter1, ...arrExistCharacter2];
-                const arrExistCharacter = [...arrExistCharacter2];
+                const arrExistCharacter = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
 
                 if (Array.isArray(arr)) {
                     arr = arr.filter(characterDesc => {
@@ -335,8 +286,8 @@ const Characters = (props: CallbackParams) => {
                                 })
                             })
                             if (isExist) return;
-
-                            useBookStore.getState().mergeAtPath(['Персонажи', 'Второстепенные персонажи'], {['Персонаж-' + getID()]: character})
+                            const listForCheck = book['Персонажи']['Второстепенные персонажи'];
+                            useBookStore.getState().mergeAtPath(['Персонажи', 'Второстепенные персонажи'], {[getFreeIndex(listForCheck, 'Персонаж-')]: character})
                         }
                     })
                     useBookStore.getState().mergeAtPath(['Персонажи', 'Все персонажи'], {value: arr.join('\n')});
@@ -346,7 +297,11 @@ const Characters = (props: CallbackParams) => {
         { // Персонажи кнопка [+]
             isMinorCharacters && <>
                 <ButtonEx className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
-                          onClick={() => useBookStore.getState().mergeAtPath(props.path, {['Персонаж-' + getID()]: minorCharacter})}/>
+                          onClick={() => {
+                              let book = useBookStore.getState().book;
+                              const listForCheck = book['Персонажи']['Второстепенные персонажи'];
+                              useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, 'Персонаж-')]: minorCharacter});
+                          }}/>
             </>}
         {isMinorCharacter && <MinorCharacterHeader {...props}/>}
         {isImageGen && <ButtonEx className={clsx('bi-image w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
@@ -373,6 +328,64 @@ const Characters = (props: CallbackParams) => {
         }}/>}
     </>;
 };
+
+function ImagesPanel(props: {
+    idFrame: string,
+    show: boolean,
+    onHide: () => void,
+    arrImgList: [string, unknown][],
+    filter: ([key, arr]: readonly [any, any]) => any,
+    caption: string,
+}) {
+
+    const {frame, setFrame, removeFrame} = useImageStore(useShallow((s) => ({
+        frame: s.frame,
+        setFrame: s.setFrame,
+        removeFrame: s.removeFrame,
+    })));
+    // const [arrSel, setArrSel] = useState(props.arrSelected ?? []);
+    return <Modal show={props.show} onHide={props.onHide} autoSize={false}>
+        <Modal.Header>
+            <Modal.Title className="text-sm">{props.caption}</Modal.Title>
+        </Modal.Header>
+
+        {props.arrImgList?.length > 0 && <div className="py-2 flex flex-wrap gap-3 justify-center w-[60vw]">
+            {props.arrImgList.filter(props.filter).map(([keyName, image], i) => {
+                    return <div key={i} className={clsx(
+                        'p-3 rounded-sm',
+                        // 'bg-black/5',
+                        'ring-1 ring-black/10 shadow-md'
+                    )}>
+                        <ImageGallery
+                            images={image as string[]}
+                            onRenderImage={(src, index) => (
+                                <div className="relative">
+                                    <img id={keyName} src={src} alt={`custom-${index}`}
+                                         className="h-35 object-cover rounded-sm hover:opacity-80 transition"/>
+                                    <Checkbox
+                                        className={clsx(
+                                            "!absolute bottom-0.5 right-0.5 w-5 h-5 bg-white hover:bg-white/80 active:bg-white/60",
+                                            "rounded-sm",
+                                        )}
+                                        checked={frame?.[props.idFrame]?.includes(keyName + '.' + index)}
+                                        onChange={(_, checked) => {
+                                            const _val = keyName + '.' + index;
+                                            if (checked) {
+                                                setFrame(props.idFrame, _val);
+                                            } else {
+                                                removeFrame(props.idFrame, _val);
+                                            }
+                                        }}/>
+                                </div>
+                            )}
+                        />
+                    </div>
+                }
+            )}
+        </div>}
+    </Modal>;
+}
+
 const PlotArc = (props: CallbackParams) => {
 
     if ((props.path)[0] != 'Сюжетная арка') return null;
@@ -384,17 +397,24 @@ const PlotArc = (props: CallbackParams) => {
     const isArcEventsItem = tags?.includes('arc-events');
     const isSceneHeader = tags?.includes('scene');
     const isFrames = isEqualString(tags, 'frames');
+    const isFrame = isEqualString(tags, 'frame');
+
+    const [openModalSelectCharacter, setOpenModalSelectCharacter] = useState(false);
+    const [openModalSelectScene, setOpenModalSelectScene] = useState(false);
+    const [openConfirm, setOpenConfirm] = useState(false);
+    const [_val, set_val] = useState<any>('');
 
     let isOptions = LIST_KEY_NAME[props.keyName];
     let name: any = isOptions ?? props.keyName;
     if (isSceneItem) name = null; // Убираем имя заголовка для сцены
 
-    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader || isFrames))
+    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader || isFrames || isFrame))
         return <div className="text-nowrap">{name}</div>;
+
+    const arrImgList = Object.entries(useImageStore.getState().images);
 
     return <>
         <div className="text-nowrap">{name}</div>
-        {/*чистим заголовок для сцены*/}
         {isPlotArc && // Сюжетная арка
             <div className="flex flex-row w-fit gap-1 [&>*]:ring-1 pl-1">
                 <>{[[structPlotArc5, '5-Актов'], [structPlotArc8, '8-Актов'], [structPlotArcHero, 'Герой'], [structPlotArcTravelCase, 'Попаданец']]
@@ -412,7 +432,11 @@ const PlotArc = (props: CallbackParams) => {
         }
         {isPlotArcItem && <div className="flex flex-row gap-1">
             <ButtonEx className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
-                      onClick={() => useBookStore.getState().mergeAtPath(props.path, {['Сцена-' + getID()]: structScene})}/>
+                      onClick={() => {
+                          let book = useBookStore.getState().book;
+                          const listForCheck = getValueByPath(book, props.path);
+                          useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, 'Сцена-')]: structScene});
+                      }}/>
             <ButtonEx
                 className={clsx("bi-stack text-[11px]", CONTROL_BTN)}
                 title="Cоздать сцены"
@@ -423,7 +447,11 @@ const PlotArc = (props: CallbackParams) => {
                         arr.forEach(item => {
                             let _structScene = JSON.parse(JSON.stringify(structScene));
                             _structScene['Описание сцены'].value = item;
-                            const nameScene = 'Сцена-' + getID();
+
+                            let book = useBookStore.getState().book;
+                            const listForCheck = getValueByPath(book, props.path);
+
+                            const nameScene = getFreeIndex(listForCheck, 'Сцена-') + '';
                             useBookStore.getState().mergeAtPath(props.path, {[nameScene]: _structScene});
                             useBookStore.getState().toggleCollapse([...(props.path), nameScene]);
                             useBookStore.getState().toggleCollapse([...(props.path), nameScene, '']);
@@ -461,26 +489,108 @@ const PlotArc = (props: CallbackParams) => {
                 title="Добавить кадр"
                 className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
                 onClick={() => {
-                    useBookStore.getState().mergeAtPath(props.path, {['Кадр-' + getID()]: structFrame});
-                    // useBookStore.getState().mergeAtPath(props.path, {['Сцена-' + getID()]: structScene});
+                    let book = useBookStore.getState().book;
+                    const listForCheck = getValueByPath(book, props.path);
+
+                    useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, 'Кадр-')]: structFrame});
                 }}/>
             <ButtonEx
                 className={clsx("bi-stack text-[11px] w-[24px] h-[24px]", CONTROL_BTN)}
                 title="Cоздать кадры"
                 description="Cоздать кадры"
                 onConfirm={() => {
-                    // const arr = props.value.value.split('\n')
-                    // if (Array.isArray(arr)) {
-                    //     arr.forEach(item => {
-                    //         let _structScene = JSON.parse(JSON.stringify(structScene));
-                    //         _structScene['Описание сцены'].value = item;
-                    //         const nameScene = 'Сцена-' + getID();
-                    //         useBookStore.getState().mergeAtPath(props.path, {[nameScene]: _structScene});
-                    //         useBookStore.getState().toggleCollapse([...(props.path), nameScene]);
-                    //         useBookStore.getState().toggleCollapse([...(props.path), nameScene, '']);
-                    //     })
-                    // }
                 }}/>
+        </>}
+        {isFrame && <>
+            <div className="flex flex-wrap">
+                <ButtonEx className={clsx("h-[24px]", CONTROL_BTN)} onClick={() => setOpenModalSelectScene(true)}>
+                    <RiLandscapeFill size={14}/>
+                    <sup>+</sup>
+                </ButtonEx>
+                <ButtonEx className={clsx("h-[24px]", CONTROL_BTN)} onClick={() => setOpenModalSelectCharacter(true)}>
+                    <BsFillPeopleFill size={14}/>
+                    <sup>+</sup>
+                </ButtonEx>
+                {openModalSelectScene &&
+                    <ImagesPanel
+                        idFrame={props.path.at(-1) as string}
+                        show={openModalSelectScene} onHide={() => setOpenModalSelectScene(false)}
+                        arrImgList={arrImgList}
+                        filter={([key, arr]) => key.includes('Сцена')} caption="Выбор сцены"/>}
+
+                {openModalSelectCharacter &&
+                    <ImagesPanel
+                        idFrame={props.path.at(-1) as string}
+                        show={openModalSelectCharacter} onHide={() => setOpenModalSelectCharacter(false)}
+                        arrImgList={arrImgList}
+                        filter={([key, arr]) => key.includes('Персонаж') || key.includes('Главный') || key.includes('Антогонист')}
+                        caption="Выбор песонажей для сцены"/>}
+                <ButtonEx className={clsx('w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
+                    let book = useBookStore.getState().book;
+
+                    console.log(props)
+
+
+                    let images = useImageStore.getState().images;
+                    const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
+
+                    let imgScene = '';
+                    let arrImgCharacter: string[] = [];
+                    let arrDescCharacter: string[] = [];
+                    arr.forEach((halfPath) => {
+                        const [name, index] = halfPath.split('.');
+                        if (name.includes('Персонаж')) {
+                            arrImgCharacter.push(images[name][index]);
+                            const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя кратко'].value;
+                            arrDescCharacter.push(desc)
+                        }
+                        if (name.includes('Главный')) {
+                            arrImgCharacter.push(images[name][index]);
+                            const desc = book['Персонажи']['Главный герой']['Имя кратко'].value;
+                            arrDescCharacter.push(desc)
+                        }
+                        if (name.includes('Антогонист')) {
+                            arrImgCharacter.push(images[name][index]);
+                            const desc = book['Персонажи']['Антогонист']['Имя кратко'].value;
+                            arrDescCharacter.push(desc)
+                        }
+                        if (name.includes('Сцена')) imgScene = images[name][index];
+                    })
+
+                    console.log(imgScene, arrImgCharacter, arrDescCharacter);
+
+                    const img = await mergeBase64Images({
+                        images: arrImgCharacter,
+                        gap: 10,
+                        backgroundColor: 'black',
+                        outputFormat: 'jpeg',
+                        jpegQuality: 1
+                        // scaleFactor: 0.5
+                    });
+
+                    // openBase64ImageInNewTab(img, 'image/jpeg')
+                    openBase64ImageInNewTab(img)
+
+                    // debugger
+
+                    // const arrPath = [
+                    //     [...props.path, 'Описание сцены'],
+                    //     [...props.path, 'Детали окружения']
+                    // ]
+                    // const arr = extractCommonValues(arrPath as string[][]);
+
+                    // const img = await mergeBase64Images({images : arrImgBase64, gap : 10, backgroundColor : 'black', scaleFactor : 0.5});
+
+                    let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+                    // let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
+
+                    // const prompt = template(promptImageScene, {styleGeneral, desc: arr.join('\n')});
+                    //
+                    // const res = await toImageGenerate({prompt, param: {aspect_ratio: '4:3'}});
+                    //
+                    // await useImageStore.getState().addImages(props.keyName + '', res)
+                }}><RiImageAiFill/></ButtonEx>
+            </div>
         </>}
         {isSceneHeader && <SceneHeader {...props}/>}
     </>;
@@ -498,6 +608,15 @@ const GPTHeader = (props: CallbackParams) => {
             }
         });
     }, []);
+
+    const excludes = props.value?.options?.excludes;
+    const isAllowGPT = !isEqualString(excludes, 'gpt');
+
+    // if(props.keyName.includes('Кадр-v0sOi9u')){
+    //     debugger
+    // }
+
+    if (!isAllowGPT) return null;
 
     const handleTextGPT = useCallback(async (text: string, fnPrompt: {
         requirements: string,

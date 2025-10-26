@@ -9,7 +9,6 @@ import {convertBase64ImageFormat} from "../general.utils.ts";
 
 // Enhanced store interface with revision tracking
 interface StoreBook {
-    isHydrated: boolean;
     revision: number;
     forceUpdate: () => void; // Метод для принудительного обновления
     book: any;
@@ -53,7 +52,6 @@ const getObjectByPath = (p: (string | number)[], cur: any) => {
 export const useBookStore = create<StoreBook>()(
     persist(
         (set, get) => ({
-            isHydrated: false,
             book: null,
             collapsed: {},
             revision: 0,
@@ -163,32 +161,30 @@ export const useBookStore = create<StoreBook>()(
             }))
         }),
         {
-            name: "story.v2",
-            storage: createJSONStorage(() => indexedDBStorage),
+            name: "story",
+            // storage: createJSONStorage(() => indexedDBStorage),
             partialize: (s) => ({
                 isHydrated: false,
                 temp: s.temp,
                 book: s.book,
                 collapsed: s.collapsed,
-            }),
-            onRehydrateStorage: () => (state, error) => {
-                if (!error) {
-                    setTimeout(() => {
-                        useBookStore.setState({isHydrated: true});
-                    }, 200);
-                }
-            },
+            })
         }
     )
 );
 
 export interface StoreImage {
+    isHydrated: boolean; //флаг гидрирования
     revision: number;
     forceUpdate: () => void; // Метод для принудительного обновления
 
     images: Record<string, string[]>;
     addImages: (id: string, imageBase64: string) => Promise<void>;
     removeImages: (id: string, index: number) => void;
+
+    frame: Record<string, string[]>;
+    setFrame: (id: string, val: string) => void;
+    removeFrame: (id: string, val: string) => void;
 
     setStore: (store: any) => void;
 }
@@ -197,8 +193,10 @@ export interface StoreImage {
 export const useImageStore = create<StoreImage>()(
     persist(immer(
             (set, get) => ({
+                isHydrated: false,
                 revision: 0,
                 images: {},
+                frame: {},
                 addImages: async (id, imageBase64) => {
 
                     const jpegBase64 = await convertBase64ImageFormat(imageBase64, 'jpeg', 'white');
@@ -210,6 +208,19 @@ export const useImageStore = create<StoreImage>()(
                 removeImages: (id, index) => set(state => {
                     state.images[id].splice(index, 1);
                 }),
+
+                setFrame: (id, val) => {
+                    set(state => {
+                        let frame = state?.frame[id] ?? [];
+                        if (!frame?.includes(val)) state.frame[id] = [...frame, val];
+                    });
+                },
+                removeFrame: (id, val) => {
+                    set(state => {
+                        state.frame[id] = [...state.frame[id]].filter(it => it != val)
+                    });
+                },
+
                 setStore: (store) => set(state => {
                     return {...state, ...store};
                 }),
@@ -219,7 +230,18 @@ export const useImageStore = create<StoreImage>()(
             })),
         {
             name: "images",
-            storage: createJSONStorage(() => indexedDBStorage)
+            storage: createJSONStorage(() => indexedDBStorage),
+            partialize: (s) => ({
+                images: s.images,
+                frame: s.frame,
+            }),
+            onRehydrateStorage: () => (state, error) => {
+                if (!error) {
+                    setTimeout(() => {
+                        useImageStore.setState({isHydrated: true});
+                    }, 200);
+                }
+            },
         }
     )
 );

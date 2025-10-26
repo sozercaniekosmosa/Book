@@ -3,14 +3,14 @@ import clsx from "clsx";
 import {useShallow} from "zustand/react/shallow";
 import {useBookStore, useImageStore} from "./store/storeBook.ts";
 
-export type Path = (string | number)[];
+export type Path = string[];
 type PathKey = string;
 
 export type CallbackParams = {
     toWrite: (value: any, p?: Path) => void;
     toSwitch: () => void;
     parent: any;
-    keyName: string | number | null;
+    keyName: string | null;
     value: any;
     path: Path;
     deep: number;

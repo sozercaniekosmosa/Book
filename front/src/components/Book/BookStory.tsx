@@ -101,37 +101,50 @@ export const StoryEditor: React.FC = () => {
         const isWrap: boolean = Boolean(props.value?.options?.width);
         const width: string = props.parent?.options?.width;
         const selfWidth: string = props.value?.options?.selfWidth;
+        const isImgGen = isEqualString(props.value?.options?.tags ?? '', 'image-gen')
+        const isImgFrame = isEqualString(props.value?.options?.tags ?? '', 'frame')
+        let Image = null;
 
-        if (isEqualString(props.value?.options?.tags ?? '', 'image-gen')) {
-            const arrImgBase64 = useImageStore.getState().images?.[props.keyName];
+        let isHydrated = useImageStore.getState().isHydrated;
+        if (isHydrated && (isImgGen || isImgFrame)) {
 
-            return <div className={clsx(LIST_KEY_NAME[props.keyName] && 'mb-1')}>
-                {props.header}
-                <div className={clsx('pl-2 border-l ml-2 ')}>
-                    <div className={clsx('flex flex-wrap')}>
-                        {arrImgBase64?.length > 0 && <div className="py-1">
-                            <ImageGallery
-                                images={arrImgBase64}
-                                onRenderImage={(src, index) => (
-                                    <div className="relative">
-                                        <img
-                                            src={src}
-                                            alt={`custom-${index}`}
-                                            className="h-35 object-cover rounded-sm hover:opacity-80 transition"
-                                        />
-                                        <ButtonEx
-                                            className="!absolute top-0 right-0 bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
-                                            description="Удалить"
-                                            onConfirm={() => {
-                                                useImageStore.getState().removeImages(props.keyName + '', index)
-                                            }}/>
-                                    </div>
-                                )}
-                            />
-                        </div>}
-                    </div>
-                    {props.children}
-                </div>
+            let images = useImageStore.getState().images;
+            let arrImgBase64: any;
+            if (isImgGen)
+                arrImgBase64 = images?.[props.keyName];
+            if (isImgFrame) {
+                const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
+
+                let arrImgCharacter: string[] = [];
+                arr.forEach((halfPath) => {
+                    const [name, index] = halfPath.split('.');
+                    if (name.includes('Персонаж') || name.includes('Главный') || name.includes('Антогонист')) arrImgCharacter.push(images[name][index]);
+                })
+                arrImgBase64 = [...arrImgCharacter]
+
+            }
+
+            Image = <div className={clsx('flex flex-wrap')}>
+                {arrImgBase64?.length > 0 && <div className="py-1">
+                    <ImageGallery
+                        images={arrImgBase64}
+                        onRenderImage={(src, index) => (
+                            <div className="relative">
+                                <img
+                                    src={src}
+                                    alt={`custom-${index}`}
+                                    className="h-35 object-cover rounded-sm hover:opacity-80 transition"
+                                />
+                                {!isImgFrame && <ButtonEx
+                                    className="!absolute top-0 right-0 bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
+                                    description="Удалить"
+                                    onConfirm={() => {
+                                        useImageStore.getState().removeImages(props.keyName + '', index)
+                                    }}/>}
+                            </div>
+                        )}
+                    />
+                </div>}
             </div>
         }
 
@@ -170,6 +183,7 @@ export const StoryEditor: React.FC = () => {
             <div className={clsx(
                 "pl-2 border-l ml-2"
             )}>
+                {Image}
                 {props.children}
             </div>
         </div>

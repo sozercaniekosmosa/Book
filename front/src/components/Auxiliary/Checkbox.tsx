@@ -1,13 +1,13 @@
-import React, {useState} from 'react';
+import React, {PropsWithChildren, useState} from 'react';
 import clsx from "clsx";
 
-type CheckboxProps = {
+interface CheckboxProps extends PropsWithChildren {
     checked?: boolean;
     onChange?: (e: React.KeyboardEvent, checked: boolean) => void;
-    classList?: string;
-};
+    className?: string;
+}
 
-const Checkbox: React.FC<CheckboxProps> = ({checked = false, classList = '', onChange}) => {
+const Checkbox = ({checked = false, className = '', onChange}: CheckboxProps) => {
     const [isChecked, setIsChecked] = useState(checked);
 
     const toggle = (e) => {
@@ -32,13 +32,13 @@ const Checkbox: React.FC<CheckboxProps> = ({checked = false, classList = '', onC
                 'p-[1px] rounded-[2px]',
                 'inline-flex items-center justify-center cursor-pointer select-none',
                 'hover:bg-black/15 active:bg-black/35',
-                classList,
+                className,
             )}
         >
             {isChecked && (
                 <svg
-                    width="16"
-                    height="12"
+                    width="80%"
+                    height="80%"
                     viewBox="0 0 16 12"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
