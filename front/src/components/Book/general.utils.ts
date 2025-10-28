@@ -3,6 +3,7 @@ import axios from "axios";
 import glob from "../../glob.ts";
 // import {GPTParams} from "./generator.type.ts";
 import {template} from "../../lib/strings.ts";
+import {number} from "framer-motion";
 
 export const handleValue = (value: string) => {
     let strValue: string;
@@ -62,7 +63,7 @@ export const toImageGenerate = async ({prompt, arrImage = null, param = null}) =
     try {
         const {data: text} = await axios.post(glob.hostAPI + 'image', {
             prompt,
-            arrImage: null,
+            arrImage,
             param
         });
 
@@ -138,7 +139,6 @@ export const renderImagesOnCanvas = (
     images: HTMLImageElement[],
     layout: CanvasLayout,
     backgroundColor: string,
-    outputFormat: 'png' | 'jpeg'
 ): HTMLCanvasElement => {
     const {canvasWidth, canvasHeight, scaledGap, imageScales} = layout;
 
@@ -164,20 +164,17 @@ export const renderImagesOnCanvas = (
 // 4. Экспорт холста в base64
 export const canvasToBase64 = (
     canvas: HTMLCanvasElement,
-    outputFormat: 'png' | 'jpeg',
-    jpegQuality: number
+    outputFormat: 'image/png' | 'image/webp' | 'image/jpeg',
+    jpegQuality: number = 0.98
 ): string => {
-    if (outputFormat !== 'png' && outputFormat !== 'jpeg') {
-        throw new Error("outputFormat must be either 'png' or 'jpeg'");
-    }
+
     if (jpegQuality < 0 || jpegQuality > 1) {
         throw new Error('jpegQuality must be in range [0, 1]');
     }
 
-    const mimeType = outputFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
-    const quality = outputFormat === 'jpeg' ? jpegQuality : undefined;
+    const quality = outputFormat === 'image/jpeg' ? jpegQuality : undefined;
 
-    return canvas.toDataURL(mimeType, quality);
+    return canvas.toDataURL(outputFormat, quality);
 };
 
 interface MergeBase64ImagesParams {
@@ -185,7 +182,7 @@ interface MergeBase64ImagesParams {
     gap?: number;
     backgroundColor?: string;
     scaleFactor?: number;
-    outputFormat?: "png" | "jpeg";
+    outputFormat?: 'image/png' | 'image/webp' | 'image/jpeg';
     jpegQuality?: number;
 }
 
@@ -195,12 +192,12 @@ export const mergeBase64Images = async (
         gap = 10,
         backgroundColor = 'black',
         scaleFactor = 1,
-        outputFormat = 'png',
+        outputFormat = 'image/jpeg',
         jpegQuality = 0.92
     }: MergeBase64ImagesParams): Promise<string> => {
     const loadedImages = await loadBase64Images(images);
     const layout = calculateCanvasLayout(loadedImages, gap, scaleFactor);
-    const canvas = renderImagesOnCanvas(loadedImages, layout, backgroundColor, outputFormat);
+    const canvas = renderImagesOnCanvas(loadedImages, layout, backgroundColor);
 
     return canvasToBase64(canvas, outputFormat, jpegQuality);
 };
@@ -211,13 +208,10 @@ export const mergeBase64Images = async (
  */
 export const convertBase64ImageFormat = async (
     base64: string,
-    outputFormat: 'png' | 'jpeg' = 'png',
+    outputFormat: 'image/png' | 'image/webp' | 'image/jpeg',
     backgroundColor: string = 'white',
     jpegQuality: number = 0.92
 ): Promise<string> => {
-    if (outputFormat !== 'png' && outputFormat !== 'jpeg') {
-        throw new Error("outputFormat must be either 'png' or 'jpeg'");
-    }
     if (jpegQuality < 0 || jpegQuality > 1) {
         throw new Error('jpegQuality must be in range [0, 1]');
     }
@@ -232,7 +226,7 @@ export const convertBase64ImageFormat = async (
     const ctx = canvas.getContext('2d')!;
 
     // 3. Заливаем фон, если нужен (особенно для JPEG)
-    if (outputFormat === 'jpeg') {
+    if (outputFormat === 'image/jpeg') {
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -244,7 +238,62 @@ export const convertBase64ImageFormat = async (
     return canvasToBase64(canvas, outputFormat, jpegQuality);
 };
 
-export const openBase64ImageInNewTab = (base64: string, mimeType = 'image/png') => {
+/**
+ * Создаёт новое изображение, вдвое большее по высоте, и размещает исходное изображение по центру по вертикали (в верхней половине).
+ * @param imageUrl - URL или base64-строка исходного изображения
+ * @param outputFormat - Формат выходного изображения ('jpeg', 'png' и т.д.), по умолчанию 'jpeg'
+ * @param prc - процент на который новое изображение больше исходного
+ * @returns Promise с base64-строкой нового изображения
+ */
+export async function addImage(
+    imageUrl: string,
+    outputFormat: 'image/png' | 'image/webp' | 'image/jpeg' = 'image/jpeg',
+    prc: number = 50
+): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous'; // на случай, если изображение с другого домена
+
+        img.onload = () => {
+            const originalWidth = img.width;
+            const originalHeight = img.height;
+
+            // Создаём canvas вдвое большей высоты
+            const canvas = document.createElement('canvas');
+            canvas.width = originalWidth;
+            let k = 100 / prc;
+            canvas.height = originalHeight * k;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                reject(new Error('Не удалось получить 2D контекст canvas'));
+                return;
+            }
+
+            // Заливка фона (опционально, например, белым для JPEG)
+            if (outputFormat === 'image/jpeg' || outputFormat === 'image/webp') {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            const yPosition = canvas.height - originalHeight;
+
+            ctx.drawImage(img, 0, yPosition, originalWidth, originalHeight);
+
+            // Получаем base64
+            const dataUrl = canvas.toDataURL(outputFormat, outputFormat === 'image/jpeg' ? 0.92 : undefined); // качество для JPEG
+            resolve(dataUrl);
+        };
+
+        img.onerror = (error) => {
+            reject(new Error(`Не удалось загрузить изображение: ${error}`));
+        };
+
+        img.src = imageUrl;
+    });
+}
+
+export const openBase64ImageInNewTab = (base64: string, mimeType: 'image/png' | 'image/webp' | 'image/jpeg' = 'image/png') => {
     // Убираем префикс data URL, если он есть
     if (base64.startsWith('data:')) {
         // Извлекаем часть после запятой

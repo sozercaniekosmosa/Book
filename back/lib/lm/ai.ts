@@ -52,10 +52,10 @@ export async function arliGPT(prompt, text, arliai_api_key) {
     }
 }
 
-export async function getImageOpenAPI(prompt: string, arrImage: string[], param: any, api_key: string) {
+export async function getImageOpenAPI(prompt: string, param: any, api_key: string) {
 
     try {
-        if (arrImage?.length > 3) throw 'Too many images > 3';
+        if (param?.arrImage?.length > 3) throw 'Too many images > 3';
 
         const openai = new OpenAI({
             baseURL: "https://openrouter.ai/api/v1",
@@ -72,8 +72,8 @@ export async function getImageOpenAPI(prompt: string, arrImage: string[], param:
             }
         ];
 
-        if (arrImage)
-            content = [...content, ...arrImage.map(base64DataUri => ({
+        if (param?.arrImage)
+            content = [...content, ...param.arrImage.map(base64DataUri => ({
                 type: 'image_url',
                 image_url: {url: base64DataUri}, // Base64 Data URI
             }))]

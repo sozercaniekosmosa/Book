@@ -2,7 +2,7 @@ import React, {useState, useEffect, useCallback} from "react";
 import {motion, AnimatePresence} from "framer-motion";
 
 type ImageGalleryProps = {
-    images: string[];
+    images: any;
     onRenderImage?: (src: string, index: number) => React.ReactNode;
     isDblClick?: boolean;
 };

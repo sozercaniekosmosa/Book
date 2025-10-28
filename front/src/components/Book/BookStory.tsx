@@ -102,7 +102,7 @@ export const StoryEditor: React.FC = () => {
         const width: string = props.parent?.options?.width;
         const selfWidth: string = props.value?.options?.selfWidth;
         const isImgGen = isEqualString(props.value?.options?.tags ?? '', 'image-gen')
-        const isImgFrame = isEqualString(props.value?.options?.tags ?? '', 'frame')
+        const isImgFrame = isEqualString(props.value?.options?.tags ?? '', 'scene')
         let Image = null;
 
         let isHydrated = useImageStore.getState().isHydrated;
@@ -110,17 +110,24 @@ export const StoryEditor: React.FC = () => {
 
             let images = useImageStore.getState().images;
             let arrImgBase64: any;
+
             if (isImgGen)
                 arrImgBase64 = images?.[props.keyName];
             if (isImgFrame) {
-                const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
+                const arr = Object.values(useImageStore?.getState()?.frame?.[props.keyName] ?? {});
+                const arrImg = Object.values(useImageStore?.getState()?.images?.[props.keyName] ?? {});
 
                 let arrImgCharacter: string[] = [];
                 arr.forEach((halfPath) => {
                     const [name, index] = halfPath.split('.');
-                    if (name.includes('Персонаж') || name.includes('Главный') || name.includes('Антогонист')) arrImgCharacter.push(images[name][index]);
+                    if (
+                        name.includes('Персонаж') ||
+                        name.includes('Главный') ||
+                        name.includes('Антогонист') ||
+                        name.includes('Кадр')
+                    ) arrImgCharacter.push(images[name][index]);
                 })
-                arrImgBase64 = [...arrImgCharacter]
+                arrImgBase64 = [...arrImg, ...arrImgCharacter]
 
             }
 
@@ -135,10 +142,11 @@ export const StoryEditor: React.FC = () => {
                                     alt={`custom-${index}`}
                                     className="h-35 object-cover rounded-sm hover:opacity-80 transition"
                                 />
-                                {!isImgFrame && <ButtonEx
+                                {<ButtonEx
                                     className="!absolute top-0 right-0 bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
                                     description="Удалить"
                                     onConfirm={() => {
+                                        debugger
                                         useImageStore.getState().removeImages(props.keyName + '', index)
                                     }}/>}
                             </div>

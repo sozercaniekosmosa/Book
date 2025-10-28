@@ -5,6 +5,7 @@ import {produce} from "immer";
 import {indexedDBStorage} from "./indexedDBStorage.ts";
 import {immer} from "zustand/middleware/immer";
 import {convertBase64ImageFormat} from "../general.utils.ts";
+import {getID} from "../../../lib/utils.ts";
 
 
 // Enhanced store interface with revision tracking
@@ -179,7 +180,7 @@ export interface StoreImage {
     forceUpdate: () => void; // Метод для принудительного обновления
 
     images: Record<string, string[]>;
-    addImages: (id: string, imageBase64: string) => Promise<void>;
+    addImages: (id: string, imageBase64: string) => Promise<string>;
     removeImages: (id: string, index: number) => void;
 
     frame: Record<string, string[]>;
@@ -199,14 +200,18 @@ export const useImageStore = create<StoreImage>()(
                 frame: {},
                 addImages: async (id, imageBase64) => {
 
-                    const jpegBase64 = await convertBase64ImageFormat(imageBase64, 'jpeg', 'white');
+                    const imgBase64 = await convertBase64ImageFormat(imageBase64, 'image/webp', 'white');
 
+                    let idImage = 'i' + getID();
                     set(state => {
-                        state.images[id] = [...state.images?.[id] ?? [], jpegBase64];
+                        state.images[id] = {...state.images[id], [idImage]: imgBase64}
                     });
+
+                    return idImage;
                 },
-                removeImages: (id, index) => set(state => {
-                    state.images[id].splice(index, 1);
+                removeImages: (id, idImage) => set(state => {
+                    // state.images[id].splice(index, 1);
+                    delete state.images[id][idImage];
                 }),
 
                 setFrame: (id, val) => {

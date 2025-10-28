@@ -2,6 +2,7 @@
 // ~@ts-nocheck
 import {
     generateUID,
+    getID,
     getObjectByPath,
     getValueByPath,
     isEmpty,
@@ -20,8 +21,8 @@ import {structFrame, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {mergeBase64Images, openBase64ImageInNewTab, toGPT, toImageGenerate} from "./general.utils.ts";
-import {fnPromptTextHandling, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
+import {addImage, mergeBase64Images, openBase64ImageInNewTab, toGPT, toImageGenerate} from "./general.utils.ts";
+import {fnPromptTextHandling, promptFistFrame, promptImageCharacter, promptNextFrame, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
@@ -180,10 +181,12 @@ const InputNumberEditor = ({doInput, value, className = ''}) => {
 const SceneHeader = (props: CallbackParams) => {
     const {path, value} = props;
 
+    const [openModalSelectCharacter, setOpenModalSelectCharacter] = useState(false);
     const sceneName = value?.['Название кратко']?.value;
     const sceneDesc = value?.['Название кратко']?.desc;
 
     const [_val, set_val] = useState<any>(sceneName);
+    const arrImgList = Object.entries(useImageStore.getState().images);
 
     return <>
         <TextWrite
@@ -200,6 +203,85 @@ const SceneHeader = (props: CallbackParams) => {
             }}
             placeholder={sceneDesc}
         />
+        <div className="flex flex-wrap">
+
+            <ButtonEx className={clsx("h-[24px]", CONTROL_BTN)} onClick={() => setOpenModalSelectCharacter(true)}>
+                <BsFillPeopleFill size={14}/>
+                <sup>+</sup>
+            </ButtonEx>
+
+            {openModalSelectCharacter &&
+                <ImagesPanel
+                    idFrame={props.path.at(-1) as string}
+                    show={openModalSelectCharacter} onHide={() => setOpenModalSelectCharacter(false)}
+                    arrImgList={arrImgList}
+                    filter={([key, arr]) => key.includes('Персонаж') || key.includes('Главный') || key.includes('Антогонист')}
+                    caption="Выбор песонажей для сцены"/>}
+            <ButtonEx className={clsx('w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
+                let book = useBookStore.getState().book;
+
+                console.log(props)
+
+
+                let images = useImageStore.getState().images;
+                const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
+
+                let imgScene = '';
+                let arrImgCharacter: string[] = [];
+                let arrDescCharacter: string[] = [];
+                arr.forEach((halfPath) => {
+                    const [name, index] = halfPath.split('.');
+                    if (name.includes('Персонаж')) {
+                        arrImgCharacter.push(images[name][index]);
+                        const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя кратко'].value;
+                        arrDescCharacter.push(desc)
+                    }
+                    if (name.includes('Главный')) {
+                        arrImgCharacter.push(images[name][index]);
+                        const desc = book['Персонажи']['Главный герой']['Имя кратко'].value;
+                        arrDescCharacter.push(desc)
+                    }
+                    if (name.includes('Антогонист')) {
+                        arrImgCharacter.push(images[name][index]);
+                        const desc = book['Персонажи']['Антогонист']['Имя кратко'].value;
+                        arrDescCharacter.push(desc)
+                    }
+                    if (name.includes('Сцена')) imgScene = images[name][index];
+                })
+
+                const img = await mergeBase64Images({
+                    images: arrImgCharacter,
+                    gap: 10,
+                    backgroundColor: 'black',
+                    outputFormat: 'image/webp',
+                    jpegQuality: 1,
+                    scaleFactor: 0.5
+                });
+
+                const imgHandled = await addImage(img, 'image/webp', 60);
+
+                // openBase64ImageInNewTab(imgHandled, 'image/webp')
+
+                let style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+
+                const scene = getValueByPath(book, props.path.slice(0, -2))
+                const desc = scene['Описание сцены'].value
+                const details = scene['Детали окружения'].value
+
+                const prompt = template(promptFistFrame, {
+                    style,
+                    characters: arrDescCharacter,
+                    desc: desc + '\n' + details,
+                    event: props.value.value
+                });
+
+                console.log(prompt);
+                console.log(props.keyName);
+
+                const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
+                await useImageStore.getState().addImages(props.keyName + '', res)
+            }}><RiImageAiFill/></ButtonEx>
+        </div>
     </>
 }
 const MinorCharacterHeader = (props: CallbackParams) => {
@@ -316,15 +398,14 @@ const Characters = (props: CallbackParams) => {
 
             const arr = extractCommonValues(arrPath as string[][]);
 
-
             let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
             let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
 
             const prompt = template(promptImageCharacter, {styleGeneral, styleCharacter, desc: arr.join('\n')});
 
-            const res = await toImageGenerate({prompt, param: {aspect_ratio: '3:4'}});
+            const imgBase64 = await toImageGenerate({prompt, param: {aspect_ratio: '3:4'}});
 
-            await useImageStore.getState().addImages(props.keyName + '', res)
+            await useImageStore.getState().addImages(props.keyName + '', imgBase64)
         }}/>}
     </>;
 };
@@ -343,21 +424,24 @@ function ImagesPanel(props: {
         setFrame: s.setFrame,
         removeFrame: s.removeFrame,
     })));
-    // const [arrSel, setArrSel] = useState(props.arrSelected ?? []);
+
+    // debugger
     return <Modal show={props.show} onHide={props.onHide} autoSize={false}>
         <Modal.Header>
             <Modal.Title className="text-sm">{props.caption}</Modal.Title>
         </Modal.Header>
 
         {props.arrImgList?.length > 0 && <div className="py-2 flex flex-wrap gap-3 justify-center w-[60vw]">
-            {props.arrImgList.filter(props.filter).map(([keyName, image], i) => {
+            {props.arrImgList.filter(props.filter).map(([keyName, listImage], i) => {
+                    const arrKey = Object.keys(listImage);
+                    const arrValue = Object.values(listImage);
                     return <div key={i} className={clsx(
                         'p-3 rounded-sm',
                         // 'bg-black/5',
                         'ring-1 ring-black/10 shadow-md'
                     )}>
                         <ImageGallery
-                            images={image as string[]}
+                            images={arrValue as string[][]}
                             onRenderImage={(src, index) => (
                                 <div className="relative">
                                     <img id={keyName} src={src} alt={`custom-${index}`}
@@ -367,9 +451,9 @@ function ImagesPanel(props: {
                                             "!absolute bottom-0.5 right-0.5 w-5 h-5 bg-white hover:bg-white/80 active:bg-white/60",
                                             "rounded-sm",
                                         )}
-                                        checked={frame?.[props.idFrame]?.includes(keyName + '.' + index)}
+                                        checked={frame?.[props.idFrame]?.includes(keyName + '.' + arrValue[index])}
                                         onChange={(_, checked) => {
-                                            const _val = keyName + '.' + index;
+                                            const _val = keyName + '.' + arrValue[index];
                                             if (checked) {
                                                 setFrame(props.idFrame, _val);
                                             } else {
@@ -503,20 +587,11 @@ const PlotArc = (props: CallbackParams) => {
         </>}
         {isFrame && <>
             <div className="flex flex-wrap">
-                <ButtonEx className={clsx("h-[24px]", CONTROL_BTN)} onClick={() => setOpenModalSelectScene(true)}>
-                    <RiLandscapeFill size={14}/>
-                    <sup>+</sup>
-                </ButtonEx>
+
                 <ButtonEx className={clsx("h-[24px]", CONTROL_BTN)} onClick={() => setOpenModalSelectCharacter(true)}>
                     <BsFillPeopleFill size={14}/>
                     <sup>+</sup>
                 </ButtonEx>
-                {openModalSelectScene &&
-                    <ImagesPanel
-                        idFrame={props.path.at(-1) as string}
-                        show={openModalSelectScene} onHide={() => setOpenModalSelectScene(false)}
-                        arrImgList={arrImgList}
-                        filter={([key, arr]) => key.includes('Сцена')} caption="Выбор сцены"/>}
 
                 {openModalSelectCharacter &&
                     <ImagesPanel
@@ -557,38 +632,37 @@ const PlotArc = (props: CallbackParams) => {
                         if (name.includes('Сцена')) imgScene = images[name][index];
                     })
 
-                    console.log(imgScene, arrImgCharacter, arrDescCharacter);
-
                     const img = await mergeBase64Images({
                         images: arrImgCharacter,
                         gap: 10,
                         backgroundColor: 'black',
-                        outputFormat: 'jpeg',
-                        jpegQuality: 1
-                        // scaleFactor: 0.5
+                        outputFormat: 'image/webp',
+                        jpegQuality: 1,
+                        scaleFactor: 0.5
                     });
 
-                    // openBase64ImageInNewTab(img, 'image/jpeg')
-                    openBase64ImageInNewTab(img)
+                    const imgHandled = await addImage(img, 'image/webp', 60);
 
-                    // debugger
+                    // openBase64ImageInNewTab(imgHandled, 'image/webp')
 
-                    // const arrPath = [
-                    //     [...props.path, 'Описание сцены'],
-                    //     [...props.path, 'Детали окружения']
-                    // ]
-                    // const arr = extractCommonValues(arrPath as string[][]);
+                    let style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
 
-                    // const img = await mergeBase64Images({images : arrImgBase64, gap : 10, backgroundColor : 'black', scaleFactor : 0.5});
+                    const scene = getValueByPath(book, props.path.slice(0, -2))
+                    const desc = scene['Описание сцены'].value
+                    const details = scene['Детали окружения'].value
 
-                    let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
-                    // let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
+                    const prompt = template(promptFistFrame, {
+                        style,
+                        characters: arrDescCharacter,
+                        desc: desc + '\n' + details,
+                        event: props.value.value
+                    });
 
-                    // const prompt = template(promptImageScene, {styleGeneral, desc: arr.join('\n')});
-                    //
-                    // const res = await toImageGenerate({prompt, param: {aspect_ratio: '4:3'}});
-                    //
-                    // await useImageStore.getState().addImages(props.keyName + '', res)
+                    console.log(prompt);
+                    console.log(props.keyName);
+
+                    const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
+                    await useImageStore.getState().addImages(props.keyName + '', res)
                 }}><RiImageAiFill/></ButtonEx>
             </div>
         </>}
