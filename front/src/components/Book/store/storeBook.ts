@@ -220,9 +220,10 @@ export const useImageStore = create<StoreImage>()(
                         if (!frame?.includes(val)) state.frame[id] = [...frame, val];
                     });
                 },
-                removeFrame: (id, val) => {
+                removeFrame: (id, idImg) => {
                     set(state => {
-                        state.frame[id] = [...state.frame[id]].filter(it => it != val)
+                        // state.frame[id] = [...state.frame[id]].filter(it => it != val)
+                        delete state.frame[id][idImg];
                     });
                 },
 
