@@ -1,34 +1,26 @@
 // ~noinspection JSUnusedLocalSymbols
 // ~@ts-nocheck
-import {
-    generateUID,
-    getID,
-    getObjectByPath,
-    getValueByPath,
-    isEmpty,
-    isEqualString,
-    walkAndFilter
-} from "../../lib/utils.ts";
+import {generateUID, getObjectByPath, getValueByPath, isEmpty, isEqualString, walkAndFilter} from "../../lib/utils.ts";
 import {useBookStore, useImageStore} from "./store/storeBook.ts";
-import React, {Fragment, useCallback, useEffect, useRef, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import {CallbackParams, Clb, DefaultIcon} from "./BookTreeEditor.tsx";
 import TextWrite from "../Auxiliary/TextWrite.tsx";
 import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import clsx from "clsx";
 import {structPlotArc5, structPlotArc8, structPlotArcHero, structPlotArcTravelCase} from "./mapBook/structArcs.ts";
 import {minorCharacter} from "./mapBook/structCharacters.ts";
-import {structFrame, structScene} from "./mapBook/structScene.ts";
+import {structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
 import {addImage, mergeBase64Images, openBase64ImageInNewTab, toGPT, toImageGenerate} from "./general.utils.ts";
-import {fnPromptTextHandling, promptFistFrame, promptImageCharacter, promptNextFrame, promptWrite} from "./prompts.ts";
+import {fnPromptTextHandling, promptFistFrame, promptImageCharacter, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
 import {BsFillPeopleFill} from "react-icons/bs";
-import {RiImageAiFill, RiLandscapeFill} from "react-icons/ri";
+import {RiImageAiFill} from "react-icons/ri";
 import Checkbox from "../Auxiliary/Checkbox.tsx";
 import {useShallow} from "zustand/react/shallow";
 
@@ -124,7 +116,6 @@ const prepareStructureSecond = (dataStruct: any) => {
             const incompressible = value?.options?.tags?.includes('incompressible');
             delete value.requirements;
             delete value.example;
-            // delete value.desc;
             if (!incompressible) return value.value; // Сжимаем объект в каждый узел подставляем значение value
         }
         return value;
@@ -215,71 +206,70 @@ const SceneHeader = (props: CallbackParams) => {
                     idFrame={props.path.at(-1) as string}
                     show={openModalSelectCharacter} onHide={() => setOpenModalSelectCharacter(false)}
                     arrImgList={arrImgList}
-                    filter={([key, arr]) => key.includes('Персонаж') || key.includes('Главный') || key.includes('Антогонист')}
+                    filter={([key, _]) => key.includes('Персонаж') || key.includes('Главный') || key.includes('Антогонист')}
                     caption="Выбор песонажей для сцены"/>}
-            <ButtonEx className={clsx('w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
-                let book = useBookStore.getState().book;
+            <ButtonEx
+                className={clsx('w-[24px] h-[24px]', CONTROL_BTN)}
+                description="Создать изображение сцены"
+                onConfirm={async () => {
+                    let book = useBookStore.getState().book;
 
-                console.log(props)
+                    let images = useImageStore.getState().images;
+                    const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
 
+                    let imgScene: string = '';
+                    let arrImgCharacter: string[] = [];
+                    let arrDescCharacter: string[] = [];
+                    arr.forEach((halfPath) => {
+                        const [name, index] = halfPath.split('.');
+                        if (name.includes('Персонаж')) {
+                            arrImgCharacter.push(images[name][index]);
+                            const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя кратко'].value;
+                            arrDescCharacter.push(desc)
+                        }
+                        if (name.includes('Главный')) {
+                            arrImgCharacter.push(images[name][index]);
+                            const desc = book['Персонажи']['Главный герой']['Имя кратко'].value;
+                            arrDescCharacter.push(desc)
+                        }
+                        if (name.includes('Антогонист')) {
+                            arrImgCharacter.push(images[name][index]);
+                            const desc = book['Персонажи']['Антогонист']['Имя кратко'].value;
+                            arrDescCharacter.push(desc)
+                        }
+                        if (name.includes('Сцена')) imgScene = images[name][index];
+                    })
 
-                let images = useImageStore.getState().images;
-                const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
+                    const img = await mergeBase64Images({
+                        images: arrImgCharacter,
+                        gap: 10,
+                        backgroundColor: 'black',
+                        outputFormat: 'image/webp',
+                        jpegQuality: 1,
+                        scaleFactor: 0.5
+                    });
 
-                let imgScene = '';
-                let arrImgCharacter: string[] = [];
-                let arrDescCharacter: string[] = [];
-                arr.forEach((halfPath) => {
-                    const [name, index] = halfPath.split('.');
-                    if (name.includes('Персонаж')) {
-                        arrImgCharacter.push(images[name][index]);
-                        const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя кратко'].value;
-                        arrDescCharacter.push(desc)
-                    }
-                    if (name.includes('Главный')) {
-                        arrImgCharacter.push(images[name][index]);
-                        const desc = book['Персонажи']['Главный герой']['Имя кратко'].value;
-                        arrDescCharacter.push(desc)
-                    }
-                    if (name.includes('Антогонист')) {
-                        arrImgCharacter.push(images[name][index]);
-                        const desc = book['Персонажи']['Антогонист']['Имя кратко'].value;
-                        arrDescCharacter.push(desc)
-                    }
-                    if (name.includes('Сцена')) imgScene = images[name][index];
-                })
+                    const imgHandled = await addImage(img, 'image/webp', 60);
 
-                const img = await mergeBase64Images({
-                    images: arrImgCharacter,
-                    gap: 10,
-                    backgroundColor: 'black',
-                    outputFormat: 'image/webp',
-                    jpegQuality: 1,
-                    scaleFactor: 0.5
-                });
+                    openBase64ImageInNewTab(imgHandled, 'image/webp')
 
-                const imgHandled = await addImage(img, 'image/webp', 60);
+                    let style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
 
-                // openBase64ImageInNewTab(imgHandled, 'image/webp')
+                    const scene = getValueByPath(book, props.path);
+                    const desc = scene['Описание сцены'].value;
+                    const details = scene['Детали окружения'].value;
 
-                let style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+                    const prompt = template(promptFistFrame, {
+                        style,
+                        characters: arrDescCharacter,
+                        desc: desc + '\n' + details
+                    });
 
-                const scene = getValueByPath(book, props.path);
-                const desc = scene['Описание сцены'].value;
-                const details = scene['Детали окружения'].value;
+                    console.log(prompt);
 
-                const prompt = template(promptFistFrame, {
-                    style,
-                    characters: arrDescCharacter,
-                    desc: desc + '\n' + details
-                });
-
-                // console.log(prompt);
-                // console.log(props.keyName);
-
-                const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
-                await useImageStore.getState().addImages(props.keyName + '', res)
-            }}><RiImageAiFill/></ButtonEx>
+                    // const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
+                    // await useImageStore.getState().addImages(props.keyName + '', res)
+                }}><RiImageAiFill/></ButtonEx>
         </div>
     </>
 }
@@ -485,7 +475,7 @@ const PlotArc = (props: CallbackParams) => {
     const isFrames = isEqualString(tags, 'frames');
     const isFrame = isEqualString(tags, 'frame');
 
-    const [_val, set_val] = useState<any>('');
+    // const [_val, set_val] = useState<any>('');
 
     let isOptions = LIST_KEY_NAME[props.keyName];
     let name: any = isOptions ?? props.keyName;

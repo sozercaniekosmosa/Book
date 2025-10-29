@@ -181,7 +181,7 @@ export interface StoreImage {
 
     images: Record<string, string[]>;
     addImages: (id: string, imageBase64: string) => Promise<string>;
-    removeImages: (id: string, index: number) => void;
+    removeImages: (id: string, index: string) => void;
 
     frame: Record<string, string[]>;
     setFrame: (id: string, val: string) => void;
@@ -223,7 +223,11 @@ export const useImageStore = create<StoreImage>()(
                 removeFrame: (id, idImg) => {
                     set(state => {
                         // state.frame[id] = [...state.frame[id]].filter(it => it != val)
-                        delete state.frame[id][idImg];
+                        if (state?.frame?.[id]?.[idImg]) {
+                            delete state.frame[id][idImg];
+                        } else if (Array.isArray(state?.frame?.[id])) {
+                            state.frame[id] = state.frame[id].filter(it => it != idImg);
+                        }
                     });
                 },
 

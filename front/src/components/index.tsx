@@ -13,20 +13,16 @@ import {useShallow} from "zustand/react/shallow";
 
 function Index() {
     const [progress, setProgress] = useState(0)
-    const [arrData, setArrData] = useState(['Элемент — 1', 'Элемент — 2', 'Элемент — 3'])
-    const [newNode, setNewNode] = useState(null)
+
     const refStoryEditor = useRef();
-    // const {isHydrated} = useBookStore(useShallow((s) => ({isHydrated: s.isHydrated})));
-    // @ts-ignore
-    const {yScroll, setValue} = useTempStore(useShallow((s) => ({yScroll: s.yScroll, setValue: s.setValue})));
 
     // @ts-ignore
-    // useEffect(() => refStoryEditor?.current?.scrollTo?.(0, useBookStore.getState().temp.yScroll), [isHydrated]);
+    const {setValue} = useTempStore(useShallow((s) => ({setValue: s.setValue})));
 
     useEffect(() => {
 
         // @ts-ignore
-        setTimeout(() => refStoryEditor?.current?.scrollTo?.(0, yScroll), 800);
+        setTimeout(() => refStoryEditor?.current?.scrollTo?.(0, useTempStore.getState().yScroll), 800);
 
         const socketHandler = ({type, data}) => {
             if (type === 'progress') setProgress(data)
@@ -46,8 +42,6 @@ function Index() {
 
         eventBus.addEventListener('message-socket', socketHandler);
         eventBus.addEventListener('message-local', localHandler)
-
-        // setTimeout(() => isInit = true, 50);
 
         return () => {
             eventBus.removeEventListener('message-socket', socketHandler);
@@ -69,9 +63,8 @@ function Index() {
             <Tabs defaultActiveKey="storybook" className="mb-1 h-full">
 
                 <Tab eventKey="storybook" title="storybook" className="">
-                    <div className="h-full p-1 text-[14px] overflow-y-scroll" ref={refStoryEditor} onScroll={(e:any) => {
-                        setValue('yScroll', e.target.scrollTop);
-                    }}>
+                    <div className="h-full p-1 text-[14px] overflow-y-scroll" ref={refStoryEditor}
+                         onScroll={(e: any) => setValue('yScroll', e.target.scrollTop)}>
                         <StoryEditor/>
                     </div>
                 </Tab>
