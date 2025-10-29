@@ -249,7 +249,7 @@ const SceneHeader = (props: CallbackParams) => {
                         scaleFactor: 0.5
                     });
 
-                    const imgHandled = await addImage(img, 'image/webp', 60);
+                    const imgHandled = await addImage(img, 'image/webp', 100);
 
                     openBase64ImageInNewTab(imgHandled, 'image/webp')
 
