@@ -34,7 +34,7 @@ export const handleValue = (value: string) => {
 //     arrDifference.length && console.log(...arrDifference);
 // }
 
-async function callGPT({system, user = null, progressID = null, method = 'gpt'}) {
+export async function callGPT({system, user = null, progressID = null, method = 'gpt'}) {
     // textContent = glob.selectedText ?? textContent;
     try {
         const {data: text} = await axios.post(glob.hostAPI + method, {

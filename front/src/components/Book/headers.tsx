@@ -13,7 +13,14 @@ import {structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {addImage, mergeBase64Images, openBase64ImageInNewTab, toGPT, toImageGenerate} from "./general.utils.ts";
+import {
+    addImage,
+    callGPT,
+    mergeBase64Images,
+    openBase64ImageInNewTab,
+    toGPT,
+    toImageGenerate
+} from "./general.utils.ts";
 import {fnPromptTextHandling, promptFistFrame, promptImageCharacter, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
@@ -259,7 +266,7 @@ const SceneHeader = (props: CallbackParams) => {
                     const desc = scene['Описание сцены'].value;
                     const details = scene['Детали окружения'].value;
 
-                    const prompt = template(promptFistFrame, {
+                    const prompt = template(promptFistFrame, null, {
                         style,
                         characters: arrDescCharacter,
                         desc: desc + '\n' + details
@@ -390,7 +397,7 @@ const Characters = (props: CallbackParams) => {
             let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
             let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
 
-            const prompt = template(promptImageCharacter, {styleGeneral, styleCharacter, desc: arr.join('\n')});
+            const prompt = template(promptImageCharacter, null, {styleGeneral, styleCharacter, desc: arr.join('\n')});
 
             const imgBase64 = await toImageGenerate({prompt, param: {aspect_ratio: '3:4'}});
 
@@ -605,7 +612,7 @@ const GPTHeader = (props: CallbackParams) => {
 
         const [genre, mood, age, ageLimit] = extractCommonValues(COMMON_PATHS);
 
-        let promptRequirements = template(fnPrompt?.requirements ?? '', {
+        let promptRequirements = template(fnPrompt?.requirements ?? '', null, {
             halfWords: Math.trunc(countWords * .5),
             x2Words: countWords * 2,
             genre,
@@ -654,8 +661,8 @@ const GPTHeader = (props: CallbackParams) => {
 
     const generateTextGPT = useCallback(async () => {
 
-        let json = useBookStore.getState().book;
-        let source = JSON.parse(JSON.stringify(json));
+        let book = useBookStore.getState().book;
+        let source = JSON.parse(JSON.stringify(book));
         source = prepareStructureFirst(source);
 
         let target = JSON.parse(JSON.stringify(props.value));
@@ -686,7 +693,7 @@ const GPTHeader = (props: CallbackParams) => {
 
                 if (value?.hasOwnProperty('options')) { // Подстановка значений
                     const strValue = JSON.stringify(value);
-                    const _strValue = template(strValue, {...value.options});
+                    const _strValue = template(strValue, null, {...value.options});
                     value = JSON.parse(_strValue);
                 }
 
@@ -698,12 +705,27 @@ const GPTHeader = (props: CallbackParams) => {
 
         total = Object.keys(listPathSrc).length;
 
-        let resultStruct = await toGPT(
-            promptWrite,
+        source = template(JSON.stringify(source, null, 2), (key) => {
+            console.log(key)
+            if (key == 'artDescImg') {
+                return (
+                    book?.['Общие']?.['Визуальный стиль изображений']?.value + '\n' +
+                    getValueByPath(book, [...props.path.slice(0, -1), 'Описание сцены', 'value']) + '\n' +
+                    getValueByPath(book, [...props.path.slice(0, -1), 'Детали окружения', 'value']));
+            }
+            return null
+        })
+
+        const promptBuild = template(promptWrite, null,
             {
-                source: JSON.stringify(source, null, 2),
+                source,
                 path: '["' + props.path.join('"."') + '"]'
             });
+
+        const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite'});
+
+
+        let resultStruct = typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;
 
         total = 0;
         eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})

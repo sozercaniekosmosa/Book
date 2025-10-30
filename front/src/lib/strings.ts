@@ -585,52 +585,52 @@ window.LZString = LZString;
 
 const IS_SHOW_LOG = false;
 
-export function template(str, ...values) {
-    // 1. Валидация входных данных
-    if (typeof str !== 'string') {
+/**
+ * Заменяет плейсхолдеры в строке, вызывая handler для каждого найденного плейсхолдера.
+ *
+ * Форматы плейсхолдеров:
+ * - Именованные: $name$ (если передан один объект-параметр)
+ * - Нумерованные: $1, $2 ... (если передано несколько позиционных значений)
+ *
+ * Подпись: template(str, handler, ...values)
+ * - handler вызывается для каждого совпадения и должен вернуть строку-замену.
+ */
+export function template(
+    str: string,
+    handler: (info: string) => string | null | undefined,
+    ...values: any[]
+): string {
+// 1. Валидация
+    if (typeof str != 'string') {
         throw new TypeError('Первый аргумент должен быть строкой');
     }
-
-    // 2. Защита от null/undefined
-    const safeValues = values.map(v => (v == null) ? '' : v);
-
-// 3. Обработка именованных плейсхолдеров ($marker_placeholder$)
-    if (safeValues.length === 1 &&
-        typeof safeValues[0] === 'object' &&
-        !Array.isArray(safeValues[0])) {
-
-        const namedParams = safeValues[0];
-
-        let _str = str;
-        const handler = (sss) => {
-            return _str.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)\$/g, (match, key) => {
-                // 4. Проверка существования ключа
-                if (!(key in sss)) {
-                    IS_SHOW_LOG && console.warn(`Плейсхолдер $${key}$ не найден в параметрах`);
-                    return `$${key}$`;
-                }
-
-                // 5. Безопасное преобразование значения
-                return String(sss[key]);
-            });
-        }
-
-        _str = handler(namedParams);
-
-        return handler(namedParams);
-        ;
+    if (!(typeof handler == 'function' || handler == null)) {
+        throw new TypeError('Второй аргумент должен быть функцией-обработчиком');
     }
 
-    // 6. Обработка нумерованных плейсхолдеров ($1, $2)
-    return str.replace(/\$(\d+)/g, (match, indexStr) => {
-        const index = parseInt(indexStr, 10) - 1;
 
-        // 7. Проверка выхода за границы массива
-        if (index < 0 || index >= safeValues.length || isNaN(index)) {
-            IS_SHOW_LOG && console.warn(`Плейсхолдер $${indexStr} выходит за границы параметров`);
-            return '';
-        }
+// 2. Защита от null/undefined для переданных значений
+    const safeValues = values.map(v => (v == null ? '' : v));
 
-        return String(safeValues[index]);
+
+// 3. Именованные плейсхолдеры (один объект-параметр)
+    if (
+        (typeof safeValues[0] === 'object' &&
+            !Array.isArray(safeValues[0])) || handler
+    ) {
+        const namedParams = safeValues[0] as Record<string, any>;
+        // Однопроходная замена — эффективно и безопасно
+        return str.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)\$/g, (raw, key: string) => {
+            const result = handler ? handler(key) : (namedParams?.[key] ? namedParams[key] : null);
+            return result == null ? raw : String(result);
+        });
+    }
+
+
+// 4. Нумерованные плейсхолдеры
+    return str.replace(/\$(\d+)/g, (raw, indexStr: string) => {
+        const index = parseInt(indexStr, 10) - 1; // из $1 -> 0-based
+        const result = handler ? handler(index + '') : (safeValues?.[index] ? safeValues[index] : null);
+        return result == null ? raw : String(result);
     });
 }
