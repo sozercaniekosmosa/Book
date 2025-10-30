@@ -52,7 +52,7 @@ export async function callGPT({system, user = null, progressID = null, method = 
 
 export const toGPT = async (prompt: string, param?: any) => {
 
-    const promptBuild = param ? template(prompt, {...param}) : prompt;
+    const promptBuild = param ? template(prompt, null, {...param}) : prompt;
     const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite'});
 
     return typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;

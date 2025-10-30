@@ -13,14 +13,7 @@ import {structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {
-    addImage,
-    callGPT,
-    mergeBase64Images,
-    openBase64ImageInNewTab,
-    toGPT,
-    toImageGenerate
-} from "./general.utils.ts";
+import {addImage, mergeBase64Images, toGPT, toImageGenerate} from "./general.utils.ts";
 import {fnPromptTextHandling, promptFistFrame, promptImageCharacter, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
@@ -258,7 +251,7 @@ const SceneHeader = (props: CallbackParams) => {
 
                     const imgHandled = await addImage(img, 'image/webp', 100);
 
-                    openBase64ImageInNewTab(imgHandled, 'image/webp')
+                    // openBase64ImageInNewTab(imgHandled, 'image/webp')
 
                     let style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
 
@@ -272,10 +265,8 @@ const SceneHeader = (props: CallbackParams) => {
                         desc: desc + '\n' + details
                     });
 
-                    console.log(prompt);
-
-                    // const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
-                    // await useImageStore.getState().addImages(props.keyName + '', res)
+                    const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
+                    await useImageStore.getState().addImages(props.keyName + '', res)
                 }}><RiImageAiFill/></ButtonEx>
         </div>
     </>
@@ -636,7 +627,7 @@ const GPTHeader = (props: CallbackParams) => {
 
                 if (value?.hasOwnProperty('options')) { // Подстановка значений
                     const strValue = JSON.stringify(value);
-                    const _strValue = template(strValue, {...value.options});
+                    const _strValue = template(strValue, null, {...value.options});
                     value = JSON.parse(_strValue);
                 }
 
@@ -661,77 +652,90 @@ const GPTHeader = (props: CallbackParams) => {
 
     const generateTextGPT = useCallback(async () => {
 
+        let tags = props.value?.options?.tags;
+        const isIngPattern = isEqualString(tags, 'img-pattern');
+
         let book = useBookStore.getState().book;
-        let source = JSON.parse(JSON.stringify(book));
-        source = prepareStructureFirst(source);
 
-        let target = JSON.parse(JSON.stringify(props.value));
+        if (isIngPattern) {
 
-        let numberValue = 0;
-        walkAndFilter(target, ({value}) => {
-            if (value?.hasOwnProperty('value')) numberValue++;
-            return value;
-        });
+            let prompt = '**Задача:** Выступи в роли эксперта по промптингу для AI-генераторов изображений (Nanobana/Stable Diffusion). На основе предоставленного художественного описания сцены, сгенерируй финальный, структурированный промпт, сфокусированный на четком позиционировании и композиции персонажей.\n' +
+                '**Требования к выходному промпту:**\n' +
+                '1.  **Начало:** Начни с определения стиля и ракурса выбери подходящий по смыслу.\n' +
+                '2.  **Композиция:** Используй явную фразу, указывающую на количество персонажей и их общую расстановку (например, "composition with three characters").\n' +
+                '3.  **Структура персонажей:** Опиши каждого персонажа отдельно, используя четкое **позиционирование** и **скобки** для группировки информации. Используй ключевые слова, такие как **(left), (center), (right), (in the foreground), (behind)** (очень точно опиши позицию где именно на сцене находится персонаж) расположение должно соответствовать Художественному описанию сцены.\n' +
+                '4.  **Формат персонажей:** Описание каждого персонажа должно быть структурировано как:\n' +
+                '    `Character N (позиция): [описание персонажа, его поза, **куда смотрит**, действие, детали, (не описывай одежду)].`\n' +
+                '5.  **Контекст и Атмосфера:** В конце промпта добавь общие детали окружения, освещения, и настроения.\n' +
+                '**Художественное описание сцены для преобразования:**\n' +
+                '$artDescImg$' +
+                '**Вывод:** Сгенерируй только финальный, готовый промпт, без лишних комментариев.';
 
-        if (numberValue == 1) target = walkAndFilter(target, ({value}) => {
-            if (value?.hasOwnProperty('value')) value.value = '';
-            return value;
-        });
+            const artDescImg = book?.['Общие']?.['Визуальный стиль изображений']?.value + '\n' +
+                getValueByPath(book, [...props.path.slice(0, -1), 'Описание сцены', 'value']) + '\n' +
+                getValueByPath(book, [...props.path.slice(0, -1), 'Детали окружения', 'value']);
 
-        const [obj, key] = getObjectByPath(source, props.path as string[]);
-        obj[key] = target;
+            prompt = template(prompt, null, {artDescImg});
 
-        const listPathSrc = {};
-        source = walkAndFilter(source, ({value, arrPath}) => {
-            if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
+            let resultStruct = await toGPT(prompt);
 
-                const id = generateUID();
-                listPathSrc[id] = [...arrPath, 'value'];
-                value.id = id;
-                value.target = '';
-                delete value.value;
+            props.toWrite(resultStruct, [...props.path, 'value']);
+        } else {
+            let source = JSON.parse(JSON.stringify(book));
+            source = prepareStructureFirst(source);
 
-                if (value?.hasOwnProperty('options')) { // Подстановка значений
-                    const strValue = JSON.stringify(value);
-                    const _strValue = template(strValue, null, {...value.options});
-                    value = JSON.parse(_strValue);
-                }
+            let target = JSON.parse(JSON.stringify(props.value));
 
-            }
-            return value;
-        });
-
-        source = prepareStructureSecond(source);
-
-        total = Object.keys(listPathSrc).length;
-
-        source = template(JSON.stringify(source, null, 2), (key) => {
-            console.log(key)
-            if (key == 'artDescImg') {
-                return (
-                    book?.['Общие']?.['Визуальный стиль изображений']?.value + '\n' +
-                    getValueByPath(book, [...props.path.slice(0, -1), 'Описание сцены', 'value']) + '\n' +
-                    getValueByPath(book, [...props.path.slice(0, -1), 'Детали окружения', 'value']));
-            }
-            return null
-        })
-
-        const promptBuild = template(promptWrite, null,
-            {
-                source,
-                path: '["' + props.path.join('"."') + '"]'
+            let numberValue = 0;
+            walkAndFilter(target, ({value}) => {
+                if (value?.hasOwnProperty('value')) numberValue++;
+                return value;
             });
 
-        const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite'});
+            if (numberValue == 1) target = walkAndFilter(target, ({value}) => {
+                if (value?.hasOwnProperty('value')) value.value = '';
+                return value;
+            });
 
+            const [obj, key] = getObjectByPath(source, props.path as string[]);
+            obj[key] = target;
 
-        let resultStruct = typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;
+            const listPathSrc = {};
+            source = walkAndFilter(source, ({value, arrPath}) => {
+                if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
 
-        total = 0;
-        eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
+                    const id = generateUID();
+                    listPathSrc[id] = [...arrPath, 'value'];
+                    value.id = id;
+                    value.target = '';
+                    delete value.value;
 
-        applyGPTResult(resultStruct, listPathSrc);
+                    if (value?.hasOwnProperty('options')) { // Подстановка значений
+                        const strValue = JSON.stringify(value);
+                        const _strValue = template(strValue, null, {...value.options});
+                        value = JSON.parse(_strValue);
+                    }
 
+                }
+                return value;
+            });
+
+            source = prepareStructureSecond(source);
+
+            total = Object.keys(listPathSrc).length;
+
+            let resultStruct = await toGPT(
+                promptWrite,
+                {
+                    source: JSON.stringify(source, null, 2),
+                    path: '["' + props.path.join('"."') + '"]'
+                });
+
+            total = 0;
+            eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
+
+            applyGPTResult(resultStruct, listPathSrc);
+        }
     }, []);
 
     const {
