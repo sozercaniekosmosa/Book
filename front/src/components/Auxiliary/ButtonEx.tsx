@@ -1,25 +1,27 @@
 //0-ok, 1-processing, 2-error
-import React, {FC, PropsWithChildren, useState} from "react";
+import React, {FC, PropsWithChildren, useRef, useState} from "react";
 import Dialog from "./Dialog.tsx";
 import {Tooltip, TTooltipDirection} from "./Tooltip.tsx";
 import Spinner from "./Spinner.tsx";
 import clsx from "clsx";
 
 interface IButtonExProps extends PropsWithChildren {
-    style?: React.CSSProperties,
-    className?: string,
-    onAction?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void,
-    onClick?: (e?: React.MouseEvent<HTMLElement>) => void,
-    onConfirm?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void,
-    dialogContent?: React.FC | React.ReactElement,
-    disabled?: boolean,
-    hidden?: boolean,
-    title?: string,
-    dir?: TTooltipDirection,
-    description?: string,
-    text?: string,
-    autoFocus?: boolean
-    stopPropagation?: boolean
+    style?: React.CSSProperties;
+    className?: string;
+    onAction?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void;
+    onClick?: (e?: React.MouseEvent<HTMLElement>) => void;
+    onConfirm?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void;
+    onUpload?: (file?: File) => Promise<number | any> | number | void;
+    dialogContent?: React.FC | React.ReactElement;
+    disabled?: boolean;
+    hidden?: boolean;
+    title?: string;
+    dir?: TTooltipDirection;
+    description?: string;
+    text?: string;
+    autoFocus?: boolean;
+    stopPropagation?: boolean;
+    typeFiles?: string;
 }
 
 const ButtonEx: FC<IButtonExProps> = ({
@@ -27,6 +29,7 @@ const ButtonEx: FC<IButtonExProps> = ({
                                           className = '',
                                           onAction = null,
                                           onClick = null,
+                                          onUpload = null,
                                           disabled = false,
                                           hidden = false,
                                           children = null,
@@ -38,11 +41,14 @@ const ButtonEx: FC<IButtonExProps> = ({
                                           text = '',
                                           autoFocus = false,
                                           stopPropagation = false,
+                                          typeFiles = '*',
                                           ...rest
                                       }) => {
     const [_state, set_state] = useState<number | void>(0)
     const [showAndDataEvent, setShowAndDataEvent] = useState<React.MouseEvent<HTMLElement>>();
 
+    // Создаём ref для input
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     let onAct = async (e: React.MouseEvent<HTMLElement>) => {
         if (disabled) return;
@@ -64,10 +70,27 @@ const ButtonEx: FC<IButtonExProps> = ({
         }
         if (onAction) {
             set_state(1)
-            const s = await onAction(e) //TODO: тут можно сделать try..catch на отлов ошибок или Promise callback
+            const s = await onAction(e); //TODO: тут можно сделать try..catch на отлов ошибок или Promise callback
             setTimeout(() => set_state(s), 500);
         }
+        if (onUpload) {
+            if (fileInputRef.current) {
+                fileInputRef.current.click(); // Программно вызываем клик на input
+            }
+        }
     }
+
+    // Обработчик выбора файла
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            onUpload(file);
+        }
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
 
     return <>
         {!hidden && <button
@@ -101,6 +124,14 @@ const ButtonEx: FC<IButtonExProps> = ({
                 setTimeout(() => set_state(s ?? 0), 500);
             }}
             props={{className: 'modal-sm'}}>{dialogContent}</Dialog> : ''}
+        {/* Скрытый input для выбора файла */}
+        <input
+            type="file"
+            ref={fileInputRef}
+            style={{display: 'none'}}
+            onChange={handleFileChange}
+            accept={typeFiles} // "*" // или укажите нужные типы: "image/*", ".pdf", и т.д.
+        />
     </>
 };
 

@@ -1,18 +1,33 @@
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import BookTreeEditor, {CallbackParams, Clb} from "./BookTreeEditor.tsx";
 import {structPlot} from "./mapBook/structPlot.ts";
 import TextWrite from "../Auxiliary/TextWrite.tsx";
 import clsx from "clsx";
-import {isEmpty, isEqualString, walkAndFilter} from "../../lib/utils.ts";
-import dataBook from "./data/data.json" with {type: "json"};
-import dataImage from "./data/images.json" with {type: "json"};
-import {useBookStore, useImageStore} from "./store/storeBook.ts";
+import {isEqualString, walkAndFilter} from "../../lib/utils.ts";
+import {useBookStore, useImageStore, useTempStore} from "./store/storeBook.ts";
 import {clbHeader} from "./headers.tsx";
 import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
 import {useShallow} from "zustand/react/shallow";
+import {BiReset, BiSave} from "react-icons/bi";
+import {BsLightningCharge, BsX} from "react-icons/bs";
+import Modal from "../Auxiliary/ModalWindow.tsx";
+import {Tab, Tabs} from "../Auxiliary/Tabs.tsx";
+import {eventBus} from "../../lib/events.ts";
+import {RiFlowerFill} from "react-icons/ri";
+import {saveBlobAsFile} from "../../lib/fs.ts";
+import JSZip from "jszip";
+import {FaRegFolder} from "react-icons/fa";
+import dataBook from "./data/data.json" with {type: "json"};
+import dataImage from "./data/images.json" with {type: "json"};
 
-export const LIST_KEY_NAME = {desc: 'Описание', example: 'Пример', requirements: 'Требования', variants: 'Варианты'};
+export const LIST_KEY_NAME = {
+    desc: 'Описание',
+    example: 'Пример',
+    requirements: 'Требования',
+    variants: 'Варианты',
+    sceneImagePrompt: 'Промпт для сцены'
+};
 
 // forced update browse
 // if (+localStorage.getItem('___refresh') < Date.now()) {
@@ -56,7 +71,6 @@ const TextEditor = ({toWrite, value, parent, className = ''}) => {
                           if (e.key === "Enter" && e.ctrlKey) {
                               toWrite(curVal);
                               (e.target as HTMLInputElement).blur();
-                              // console.log(parent);
                           }
                       }}
                       className={className}
@@ -66,10 +80,27 @@ const TextEditor = ({toWrite, value, parent, className = ''}) => {
 
 export const StoryEditor: React.FC = () => {
 
+    const [isEvents, setIsEvents] = useState(false);
+    const refEventContent = useRef(null);
+    const refStoryEditor = useRef();
+
     const {book} = useBookStore(useShallow((s) => ({book: s.book})));
     useEffect(() => {
         !book && useBookStore.getState().setAtPath([], structPlot);
     }, [book]);
+
+    // @ts-ignore
+    const {setValue} = useTempStore(useShallow((s) => ({setValue: s.setValue})));
+
+    useEffect(() => {
+        // @ts-ignore
+        setTimeout(() => refStoryEditor?.current?.scrollTo?.(0, useTempStore.getState().yScroll), 800);
+
+        eventBus.addEventListener('set-scroll-top', () => {
+            // @ts-ignore
+            refStoryEditor.current.scrollTop = useBookStore.getState().temp.scrollTop;
+        });
+    }, [])
 
     const clbEditorValue: Clb = (props) => {
         const {keyName, parent} = props;
@@ -147,10 +178,10 @@ export const StoryEditor: React.FC = () => {
                                     />
                                     {_images.some(([, v]) => v === src) && (
                                         <ButtonEx
-                                            className="!absolute top-0 right-0 bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
+                                            className="!absolute top-0 right-0 w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
                                             description="Удалить"
                                             onConfirm={() => removeImages(String(keyName), allKeys[i])}
-                                        />
+                                        ><BsX size="24"/></ButtonEx>
                                     )}
                                 </div>
                             )}
@@ -181,83 +212,102 @@ export const StoryEditor: React.FC = () => {
             </div>
         );
     }, []);
-    return (
-        <div className="p-4">
+    return (<>
+        <div className="flex gap-2">
+            <ButtonEx className="w-[24px] h-[24px]"
+                      onConfirm={() => useBookStore.getState().setAtPath([], structPlot)}
+                      description="Очистить"><BiReset/></ButtonEx>
+            <ButtonEx className="w-[24px] h-[24px]"
+                      typeFiles=".book"
+                      onUpload={(file) => {
+                          // useBookStore.getState().setAtPath([], dataBook);
+                          const zip = new JSZip();
+                          zip.loadAsync(file)
+                              .then(async function (zip) {
+                                  const jsonBook = await zip.file("book").async("string"); // a promise of "Hello World\n"
+                                  const jsonImages = await zip.file("images").async("string"); // a promise of "Hello World\n"
+                                  useBookStore.getState().setAtPath([], JSON.parse(jsonBook));
+                                  useImageStore.getState().setStore(JSON.parse(jsonImages));
+                              });
+                      }}
+            ><FaRegFolder/></ButtonEx>
+            <ButtonEx className="w-[24px] h-[24px]"
+                      typeFiles=".book"
+                      onClick={() => {
+                          // saveTextAsFile(useBookStore.getState().book, 'book.json');
+                          // console.log(useBookStore.getState().book);
 
-            <div className="mb-3 flex gap-2">
-                <ButtonEx className="bi-upload" onClick={() => {
-                    useImageStore.getState().setStore(dataImage);
-                }}></ButtonEx>
-                <ButtonEx className="bi-floppy" onClick={() => {
-                    console.log(useImageStore.getState());
-                }}></ButtonEx>
+                          const zip = new JSZip();
+                          const bookName = useBookStore.getState().book['Общие']['Название'].value
+                          zip.file('book', JSON.stringify(useBookStore.getState().book));
+                          zip.file('images', JSON.stringify(useImageStore.getState()));
 
-                <button
-                    className="px-3 py-1 border rounded"
-                    onClick={() => {
-                        useBookStore.getState().setAtPath([], structPlot);
-                    }}
-                >
-                    Reset store
-                </button>
-                <button
-                    className="px-3 py-1 border rounded"
-                    onClick={() => {
-                        useBookStore.getState().setAtPath([], dataBook);
-                    }}
-                >
-                    load
-                </button>
-                <button
-                    className="px-3 py-1 border rounded"
-                    onClick={() => {
-                        console.log(useBookStore.getState().book);
-                    }}
-                >
-                    save
-                </button>
-                <button
-                    className="px-3 py-1 border rounded"
-                    onClick={() => {
+                          zip.generateAsync({type: 'blob'}).then(function (content) {
+                              saveBlobAsFile(content, bookName + '.book');
+                          });
 
-                        const dataFilteredEmptyVal = walkAndFilter(useBookStore.getState().book,
-                            ({parent, key, value}) => {
+                      }}><BiSave/></ButtonEx>
+            <ButtonEx className="w-[24px] h-[24px]"
+                      onClick={() => {
+                          const book = useBookStore.getState().book;
+                          let arrRes = [];
+                          walkAndFilter(book,
+                              ({parent, key, value}) => {
+                                  if (value?.options?.tags?.includes('plot-arc-item')) {
+                                      arrRes.push('')
+                                      arrRes.push(key + ':plot-arc-item')
+                                  }
+                                  if (value?.options?.tags?.includes('scene')) {
+                                      const nameScene = value?.['Название кратко'].value + ':scene';
+                                      arrRes.push(nameScene)
+                                      const event = value?.['События'].value;
+                                      arrRes.push(event)
+                                  }
+                                  return value;
+                              })
+                          refEventContent.current = arrRes;
+                          setIsEvents(true);
+                      }}
+            >
+                <BsLightningCharge/>
+            </ButtonEx>
 
-                                if (parent?.hasOwnProperty('value') && parent.value == '') return null;
-                                if (value?.hasOwnProperty('value') && value.value == '') return null;
-                                if (value?.hasOwnProperty('options')) delete value.options
-                                if (value?.hasOwnProperty('desc')) delete value.desc
-                                if (value?.hasOwnProperty('example')) delete value.example
-                                if (value?.hasOwnProperty('requirements')) delete value.requirements
-                                if (value?.hasOwnProperty('variants')) delete value.variants
-                                if (key != 'value' && isEmpty(value)) return null; // Убираем пустые узлы типа: {}
-                                if (value?.hasOwnProperty('value') && typeof value.value != "object") return value.value; // Сжимаем объект в каждый узел подставляем значение value
+            {isEvents ? <Modal show={isEvents} onHide={() => setIsEvents(false)} autoSize={false} className="w-[90%]">
+                <Modal.Header>
+                    <Modal.Title className="h6">События</Modal.Title>
+                </Modal.Header>
+                <Modal.Body
+                    className="py-4 leading-[1.1em] text-[14px] text-gray-600">{refEventContent.current.map((it, i) => {
+                    if (it.includes(':plot-arc-item'))
+                        return <div className="pt-2 justify-center items-center flex flex-row gap-2" key={i}>
+                            <RiFlowerFill size="12" className="rotate-315"/><p
+                            className="text-center font-bold">{it.replaceAll(':plot-arc-item', '')}</p><RiFlowerFill
+                            size="12" className="rotate-45"/></div>
+                    if (it.includes(':scene'))
+                        return <p className="pt-2 font-bold" key={i}>{it.replaceAll(':scene', '')}</p>
 
-                                return value;
-                            })
+                    return <pre className="w-full whitespace-break-spaces" key={i}>{it}</pre>
 
-                        walkAndFilter(dataFilteredEmptyVal, ({value, arrPath}) => {
-                            if (typeof value != "object") {
-                                useBookStore.getState().setAtPath([...arrPath, 'value'], value);
-                            }
+                })}</Modal.Body>
+            </Modal> : ''}
 
-                            return value;
-                        })
-
-                        // console.log(dataFilteredEmptyVal)
-                    }}
-                >
-                    exp
-                </button>
-                <ImageUploadBase64/>
-            </div>
-
-            <BookTreeEditor
-                clbEditorValue={clbEditorValue}
-                clbContainer={clbContainer}
-                clbHeader={clbHeader}
-            />
-            <div className="h-[100vh]"></div>
         </div>
-    );
+        <Tabs defaultActiveKey="storybook" className="mb-1 h-full">
+            <Tab eventKey="storybook" title="Книга" className="">
+                <div className="h-full p-1 text-[14px] overflow-y-scroll" ref={refStoryEditor}
+                     onScroll={(e: any) => setValue('yScroll', e.target.scrollTop)}>
+                    <div className="p-4">
+                        <BookTreeEditor
+                            clbEditorValue={clbEditorValue}
+                            clbContainer={clbContainer}
+                            clbHeader={clbHeader}
+                        />
+                        <div className="h-[50vh]"></div>
+                    </div>
+                </div>
+            </Tab>
+            <Tab eventKey="events" title="События" className="">
+            </Tab>
+        </Tabs>
+    </>);
 };

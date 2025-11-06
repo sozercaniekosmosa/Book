@@ -18,6 +18,7 @@ interface ModalProps {
     onHide: () => void;
     children: React.ReactNode;
     autoSize?: boolean;
+    className?: string;
 }
 
 interface ModalHeaderProps {
@@ -54,7 +55,7 @@ const Modal: React.FC<ModalProps> & {
     Title: React.FC<ModalTitleProps>;
     Body: React.FC<ModalBodyProps>;
     Footer: React.FC<ModalFooterProps>;
-} = ({show, onHide, autoSize = true, children}) => {
+} = ({show, onHide, autoSize = true, children, className = ''}: ModalProps) => {
     // Обработка Escape
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -84,6 +85,7 @@ const Modal: React.FC<ModalProps> & {
                 <ModalContext.Provider value={{onHide}}>
                     <div
                         className={clsx(
+                            className,
                             'relative inline-block transform overflow-hidden rounded-sm bg-white px-4 pt-5 pb-4',
                             'text-left align-bottom shadow-xl transition-all sm:my-8',
                             autoSize && 'sm:w-full sm:max-w-lg',

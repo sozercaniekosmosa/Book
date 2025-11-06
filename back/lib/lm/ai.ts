@@ -136,8 +136,8 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
         // тестим
         // const model = "anthropic/claude-haiku-4.5"//..s
         const model = "google/gemini-2.0-flash-001"//..s
-        // const model = "google/gemini-2.5-flash-lite-preview-09-2025"//..s
         // const model = "google/gemini-2.5-flash-lite"//..s
+        // const model = "google/gemini-2.5-flash-lite-preview-09-2025"//..s
 
         console.log(model);
 

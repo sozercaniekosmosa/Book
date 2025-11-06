@@ -23,3 +23,26 @@ export function saveUnitArrayAsFile(filename, encoded) {
     pom.click();
     document.body.removeChild(pom);
 }
+
+/**
+ * Сохраняет Blob как файл с указанным именем
+ * @param blob - Blob, который нужно сохранить
+ * @param filename - Имя файла (по умолчанию 'download')
+ */
+export const saveBlobAsFile = (blob: Blob, filename: string = 'download'): void => {
+    // Создаём временный URL для Blob
+    const url = URL.createObjectURL(blob);
+
+    // Создаём скрытый <a> элемент
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename; // Указываем имя файла для скачивания
+
+    // Добавляем ссылку в DOM, кликаем по ней и удаляем
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Освобождаем память, отменяя URL
+    URL.revokeObjectURL(url);
+};

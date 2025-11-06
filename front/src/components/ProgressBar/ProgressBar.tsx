@@ -1,5 +1,4 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import './style.css';
 
 const ProgressBar = ({progress}) => {
@@ -10,10 +9,6 @@ const ProgressBar = ({progress}) => {
             </div>
         </div>
     );
-};
-
-ProgressBar.propTypes = {
-    progress: PropTypes.number.isRequired,
 };
 
 export default ProgressBar;

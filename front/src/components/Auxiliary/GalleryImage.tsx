@@ -1,5 +1,6 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {motion, AnimatePresence} from "framer-motion";
+import {BsChevronLeft, BsChevronRight, BsX} from "react-icons/bs";
 
 type ImageGalleryProps = {
     images: any;
@@ -80,7 +81,7 @@ const ImageGallery = ({images, onRenderImage, isDblClick = false}: ImageGalleryP
                             onClick={close}
                             className="absolute top-4 right-4 text-white hover:text-gray-300"
                         >
-                            <div className="bi-x text-xl"/>
+                            <BsX size="48"/>
                         </button>
 
                         {/* Кнопки навигации */}
@@ -91,7 +92,7 @@ const ImageGallery = ({images, onRenderImage, isDblClick = false}: ImageGalleryP
                             }}
                             className="absolute left-4 text-white hover:text-gray-300"
                         >
-                            <div className="bi-chevron-left text-4xl"/>
+                            <BsChevronLeft size={48}/>
                         </button>
                         <button
                             onClick={(e) => {
@@ -100,7 +101,7 @@ const ImageGallery = ({images, onRenderImage, isDblClick = false}: ImageGalleryP
                             }}
                             className="absolute right-4 text-white hover:text-gray-300"
                         >
-                            <div className="bi-chevron-right text-4xl"/>
+                            <BsChevronRight size={48}/>
                         </button>
 
                         {/* Изображение с анимацией */}

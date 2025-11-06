@@ -13,23 +13,57 @@ import {structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {addImage, mergeBase64Images, toGPT, toImageGenerate} from "./general.utils.ts";
-import {fnPromptTextHandling, promptFistFrame, promptImageCharacter, promptWrite} from "./prompts.ts";
+import {addImage, mergeBase64Images, openBase64ImageInNewTab, toGPT, toImageGenerate} from "./general.utils.ts";
+import {fnPromptTextHandling, promptArt, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
-import {BsFillPeopleFill} from "react-icons/bs";
-import {RiImageAiFill} from "react-icons/ri";
+import {
+    BsArrowsCollapse,
+    BsArrowsFullscreen, BsCheckAll, BsCircle,
+    BsCircleHalf,
+    BsCloudRain, BsEmojiFrown,
+    BsEmojiSmile, BsEraserFill,
+    BsFillPeopleFill, BsGear, BsGearFill,
+    BsImage, BsLightning,
+    BsPlusCircle,
+    BsStack,
+    BsStars, BsSun,
+    BsThreeDotsVertical, BsX
+} from "react-icons/bs";
+import {RiImageAiFill, RiParagraph} from "react-icons/ri";
 import Checkbox from "../Auxiliary/Checkbox.tsx";
 import {useShallow} from "zustand/react/shallow";
+import {GiSpellBook} from "react-icons/gi";
+import {IoMdMan} from "react-icons/io";
+import {ImMan} from "react-icons/im";
 
 // @ts-ignore
 window.q = useImageStore.getState;
 
 const CONTROL_BTN = 'opacity-30 hover:opacity-100';
-const SET_OPTIONS = 'options desc example requirements variants';
+const SET_OPTIONS = 'options desc example requirements variants sceneImagePrompt';
 let total = 0;
+
+const TextInputEditor = ({doInput, value, placeholder, className = ''}) => {
+    const [curVal, setCurVal] = useState(value);
+
+    return <input value={curVal}
+                  onChange={e => setCurVal(e.target.value)}
+                  placeholder={placeholder}
+                  onBlur={() => {
+                      return doInput(curVal);
+                  }}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                      if (e.key === "Enter") {
+                          (e.target as HTMLInputElement).blur();
+                          doInput(curVal);
+                      }
+                  }}
+                  className={className}
+    />;
+};
 
 const getFreeIndex = (list: Record<string, any>, strPrefix: string) => {
     for (let i = 0; i < 1000; i++)
@@ -48,7 +82,6 @@ const pathHandler = (path: (string | number)[]) => {
 }
 
 const applyGPTResult = (resultStruct: any, listPathSrc: {}) =>
-
     walkAndFilter(resultStruct, ({value}) => {
         if (value?.hasOwnProperty('id')) {
             const id = value.id;
@@ -103,14 +136,14 @@ const prepareStructureFirst = (dataStruct: any) => {
 
     let nodeCharacters = delFields?.['Персонажи'];
 
-    if (Object.keys(nodeCharacters?.['Главный герой']).length == 2) delete nodeCharacters['Главный герой'];
-    if (Object.keys(nodeCharacters?.['Антогонист']).length == 2) delete nodeCharacters['Антогонист'];
+    if (Object.keys(nodeCharacters?.['Главный герой'] ?? []).length == 2) delete nodeCharacters['Главный герой'];
+    if (Object.keys(nodeCharacters?.['Антогонист'] ?? []).length == 2) delete nodeCharacters['Антогонист'];
 
     if (isEmpty(nodeCharacters)) delete dataFilteredEmptyVal?.['Персонажи'];
 
     return dataFilteredEmptyVal;
 }
-const prepareStructureSecond = (dataStruct: any) => {
+const prepareStructureSecond = (dataStruct: any, arrDelFields: string[]) => {
     dataStruct = walkAndFilter(dataStruct, ({value}) => {
         if (value?.hasOwnProperty('value')) {
             const incompressible = value?.options?.tags?.includes('incompressible');
@@ -120,7 +153,7 @@ const prepareStructureSecond = (dataStruct: any) => {
         }
         return value;
     });
-    dataStruct = deleteFields(dataStruct, ['options']);
+    dataStruct = deleteFields(dataStruct, arrDelFields);
     dataStruct = deleteEmpty(dataStruct);
     dataStruct = deleteEmpty(dataStruct);
     dataStruct = deleteEmpty(dataStruct);
@@ -169,6 +202,195 @@ const InputNumberEditor = ({doInput, value, className = ''}) => {
         />
     </div>;
 };
+const MinorCharacterHeader = (props: CallbackParams) => {
+
+    const characterName = (props.value)?.['Имя кратко']?.value;
+    const characterDesc = (props.value)?.['Имя кратко']?.desc;
+
+    const [_val, set_val] = useState<any>(characterName);
+
+
+    return <>
+        <TextWrite
+            className="text-black !w-auto"
+            fitToTextSize={true}
+            value={_val}
+
+            onChange={(e) => set_val(e.target.value)}
+            onBlur={() => useBookStore.getState().setAtPath(props.path.concat(['Имя кратко', 'value']), _val)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === "Enter" && e.ctrlKey) {
+                    useBookStore.getState().setAtPath(props.path.concat(['Имя кратко', 'value']), _val);
+                    (e.target as HTMLInputElement).blur();
+                }
+            }}
+
+            placeholder={characterDesc}
+        />
+    </>;
+};
+
+const General = (props: CallbackParams) => {
+    if ((props.path)[0] != 'Общие') return null;
+
+    let isOptions = LIST_KEY_NAME[props.keyName];
+    let name: string = isOptions ?? props.keyName;
+
+    return <div className="text-nowrap">{name}</div>;
+};
+const Characters = (props: CallbackParams) => {
+
+    if ((props.path)[0] != 'Персонажи') return null;
+
+    let tags = props.value?.options?.tags;
+    const isAllCharacters = isEqualString(tags, 'all-characters');
+    const isCharacters = isEqualString(tags, 'character');
+    const isMinorCharacters = isEqualString(tags, 'minor-characters');
+    const isMinorCharacter = isEqualString(tags, 'minor-character');
+    const isImageGen = isEqualString(tags, 'image-gen');
+
+    let isOptions = LIST_KEY_NAME[props.keyName];
+    let name: string = isOptions ?? props.keyName;
+
+    if (!(isCharacters || isAllCharacters || isMinorCharacters || isMinorCharacter))
+        return <div className="text-nowrap">{name}</div>;
+
+    return <>
+        {!isMinorCharacter && <div className="text-nowrap">{name}</div>}
+        {isAllCharacters && <div className="flex 1flex-row gap-1">
+            <ButtonEx className={clsx("w-[24px] h-[24px] text-[11px]", CONTROL_BTN)} onClick={() => {
+                let book = useBookStore.getState().book;
+                let arr: string[] = props.value.value.split('\n');
+                const arrExistCharacter = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
+
+                if (Array.isArray(arr)) {
+                    arr = arr.filter(characterDesc => {
+                        const charDesc = characterDesc.toLocaleLowerCase();
+                        const character = JSON.parse(JSON.stringify(minorCharacter));
+                        character['Общее описание'].value = characterDesc;
+
+                        if (charDesc.includes('главный герой')) {
+                            console.log('1)' + charDesc);
+                            if (book['Персонажи']['Главный герой']['Общее описание'].value) return;
+                            useBookStore.getState().mergeAtPath(['Персонажи', 'Главный герой', 'Общее описание'], {value: character})
+                        } else if (charDesc.includes('антогонист')) {
+                            console.log('2)' + charDesc);
+                            if (book['Персонажи']['Антогонист']['Общее описание'].value) return;
+                            useBookStore.getState().mergeAtPath(['Персонажи', 'Антогонист', 'Общее описание'], {value: character})
+                        } else {
+
+                            const isExist = arrExistCharacter.some(simpleName => {
+                                const arrNameIt = simpleName.toLocaleString().split(',').map((it: string) => it.toLocaleLowerCase().trim());
+                                return arrNameIt.some((name: string) => {
+                                    return charDesc.substring(0, charDesc.search(/\s.\s/)).includes(name);
+                                })
+                            })
+                            if (isExist) return;
+                            const listForCheck = book['Персонажи']['Второстепенные персонажи'];
+                            useBookStore.getState().mergeAtPath(['Персонажи', 'Второстепенные персонажи'], {[getFreeIndex(listForCheck, 'Персонаж-')]: character})
+                        }
+                    })
+                    useBookStore.getState().mergeAtPath(['Персонажи', 'Все персонажи'], {value: arr.join('\n')});
+                }
+            }}>
+                {/*<BsStack size={24}/>*/}
+            </ButtonEx>
+        </div>}
+        { // Персонажи кнопка [+]
+            isMinorCharacters && <>
+                <ButtonEx className={clsx("w-[24px] h-[24px]", CONTROL_BTN)}
+                          onClick={() => {
+                              let book = useBookStore.getState().book;
+                              const listForCheck = book['Персонажи']['Второстепенные персонажи'];
+                              useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, 'Персонаж-')]: minorCharacter});
+                          }}>
+                    <BsPlusCircle size="24"/>
+                </ButtonEx>
+            </>}
+        {isMinorCharacter && <MinorCharacterHeader {...props}/>}
+        {isImageGen && <ButtonEx className={clsx('w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
+            let book = useBookStore.getState().book;
+
+            console.log(props.keyName)
+
+            const arrPath = [
+                [...props.path, 'Тело/физические характеристики'],
+                [...props.path, 'Стиль и визуальные особенности']
+            ]
+
+            const arr = extractCommonValues(arrPath as string[][]);
+
+            let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+            let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
+
+            const prompt = template(promptImageCharacter, null, {styleGeneral, styleCharacter, desc: arr.join('\n')});
+
+            const imgBase64 = await toImageGenerate({prompt, param: {aspect_ratio: '3:4'}});
+
+            await useImageStore.getState().addImages(props.keyName + '', imgBase64)
+        }}><BsImage size="24"/></ButtonEx>}
+    </>;
+};
+
+const ImagesPanel = (props: {
+    idFrame: string,
+    show: boolean,
+    onHide: () => void,
+    arrImgList: [string, unknown][],
+    filter: ([key, arr]: readonly [any, any]) => any,
+    caption: string,
+}) => {
+    const {frame, setFrame, removeFrame} = useImageStore(useShallow((s) => ({
+        frame: s.frame,
+        setFrame: s.setFrame,
+        removeFrame: s.removeFrame,
+    })));
+    return <Modal show={props.show} onHide={props.onHide} autoSize={false}>
+        <Modal.Header>
+            <Modal.Title className="text-sm">{props.caption}</Modal.Title>
+        </Modal.Header>
+        {props.arrImgList?.length > 0 && <div className="py-2 flex flex-wrap gap-3 justify-center w-[60vw]">
+            {props.arrImgList.filter(props.filter).map(([keyName, listImage], i) => {
+                    const arrKey = Object.keys(listImage);
+                    const arrValue = Object.values(listImage);
+
+                    return <div key={i} className={clsx(
+                        'p-3 rounded-sm',
+                        // 'bg-black/5',
+                        'ring-1 ring-black/10 shadow-md'
+                    )}>
+                        <ImageGallery
+                            images={arrValue as string[][]}
+                            onRenderImage={(src, index) => {
+                                return (
+                                    <div className="relative">
+                                        <img id={keyName} src={src} alt={`custom-${index}`}
+                                             className="h-35 object-cover rounded-sm hover:opacity-80 transition"/>
+                                        <Checkbox
+                                            className={clsx(
+                                                "!absolute bottom-0.5 right-0.5 w-5 h-5 bg-white hover:bg-white/80 active:bg-white/60",
+                                                "rounded-sm",
+                                            )}
+                                            checked={frame?.[props.idFrame]?.includes(keyName + '.' + arrKey[index])}
+                                            onChange={(_, checked) => {
+                                                const selectedKey = keyName + '.' + arrKey[index];
+                                                if (checked) {
+                                                    setFrame(props.idFrame, selectedKey);
+                                                } else {
+                                                    removeFrame(props.idFrame, selectedKey);
+                                                }
+                                            }}/>
+                                    </div>
+                                );
+                            }}
+                        />
+                    </div>
+                }
+            )}
+        </div>}
+    </Modal>;
+};
+
 const SceneHeader = (props: CallbackParams) => {
     const {path, value} = props;
 
@@ -259,205 +481,17 @@ const SceneHeader = (props: CallbackParams) => {
                     const desc = scene['Описание сцены'].value;
                     const details = scene['Детали окружения'].value;
 
-                    const prompt = template(promptFistFrame, null, {
+                    const prompt = template(getValueByPath(book, [...props.path, 'sceneImagePrompt']), null, {
                         style,
                         characters: arrDescCharacter,
                         desc: desc + '\n' + details
                     });
 
                     const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
-                    await useImageStore.getState().addImages(props.keyName + '', res)
+                    await useImageStore.getState().addImages(props.keyName + '', res);
                 }}><RiImageAiFill/></ButtonEx>
         </div>
     </>
-}
-const MinorCharacterHeader = (props: CallbackParams) => {
-
-    const characterName = (props.value)?.['Имя кратко']?.value;
-    const characterDesc = (props.value)?.['Имя кратко']?.desc;
-
-    const [_val, set_val] = useState<any>(characterName);
-
-
-    return <>
-        <TextWrite
-            className="text-black !w-auto"
-            fitToTextSize={true}
-            value={_val}
-
-            onChange={(e) => set_val(e.target.value)}
-            onBlur={() => useBookStore.getState().setAtPath(props.path.concat(['Имя кратко', 'value']), _val)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                if (e.key === "Enter" && e.ctrlKey) {
-                    useBookStore.getState().setAtPath(props.path.concat(['Имя кратко', 'value']), _val);
-                    (e.target as HTMLInputElement).blur();
-                }
-            }}
-
-            placeholder={characterDesc}
-        />
-    </>;
-};
-
-const General = (props: CallbackParams) => {
-    if ((props.path)[0] != 'Общие') return null;
-
-    let isOptions = LIST_KEY_NAME[props.keyName];
-    let name: string = isOptions ?? props.keyName;
-
-    return <div className="text-nowrap">{name}</div>;
-};
-const Characters = (props: CallbackParams) => {
-
-    if ((props.path)[0] != 'Персонажи') return null;
-
-    let tags = props.value?.options?.tags;
-    const isAllCharacters = isEqualString(tags, 'all-characters');
-    const isCharacters = isEqualString(tags, 'character');
-    const isMinorCharacters = isEqualString(tags, 'minor-characters');
-    const isMinorCharacter = isEqualString(tags, 'minor-character');
-    const isImageGen = isEqualString(tags, 'image-gen');
-
-    let isOptions = LIST_KEY_NAME[props.keyName];
-    let name: string = isOptions ?? props.keyName;
-
-    if (!(isCharacters || isAllCharacters || isMinorCharacters || isMinorCharacter))
-        return <div className="text-nowrap">{name}</div>;
-
-    return <>
-        {!isMinorCharacter && <div className="text-nowrap">{name}</div>}
-        {isAllCharacters && <div className="flex 1flex-row gap-1">
-            <ButtonEx className={clsx("bi-stack w-[24px] h-[24px] text-[11px]", CONTROL_BTN)} onClick={() => {
-                let book = useBookStore.getState().book;
-                let arr: string[] = props.value.value.split('\n');
-                const arrExistCharacter = Object.entries(book['Персонажи']['Второстепенные персонажи']).filter(([key, _]) => key.toLocaleLowerCase().startsWith('перс')).map(([_, it]) => it["Имя кратко"].value)
-
-                if (Array.isArray(arr)) {
-                    arr = arr.filter(characterDesc => {
-                        const charDesc = characterDesc.toLocaleLowerCase();
-                        const character = JSON.parse(JSON.stringify(minorCharacter));
-                        character['Общее описание'].value = characterDesc;
-
-                        if (charDesc.includes('главный герой')) {
-                            console.log('1)' + charDesc);
-                            if (book['Персонажи']['Главный герой']['Общее описание'].value) return;
-                            useBookStore.getState().mergeAtPath(['Персонажи', 'Главный герой', 'Общее описание'], {value: character})
-                        } else if (charDesc.includes('антогонист')) {
-                            console.log('2)' + charDesc);
-                            if (book['Персонажи']['Антогонист']['Общее описание'].value) return;
-                            useBookStore.getState().mergeAtPath(['Персонажи', 'Антогонист', 'Общее описание'], {value: character})
-                        } else {
-
-                            const isExist = arrExistCharacter.some(simpleName => {
-                                const arrNameIt = simpleName.toLocaleString().split(',').map((it: string) => it.toLocaleLowerCase().trim());
-                                return arrNameIt.some((name: string) => {
-                                    return charDesc.substring(0, charDesc.search(/\s.\s/)).includes(name);
-                                })
-                            })
-                            if (isExist) return;
-                            const listForCheck = book['Персонажи']['Второстепенные персонажи'];
-                            useBookStore.getState().mergeAtPath(['Персонажи', 'Второстепенные персонажи'], {[getFreeIndex(listForCheck, 'Персонаж-')]: character})
-                        }
-                    })
-                    useBookStore.getState().mergeAtPath(['Персонажи', 'Все персонажи'], {value: arr.join('\n')});
-                }
-            }}/>
-        </div>}
-        { // Персонажи кнопка [+]
-            isMinorCharacters && <>
-                <ButtonEx className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
-                          onClick={() => {
-                              let book = useBookStore.getState().book;
-                              const listForCheck = book['Персонажи']['Второстепенные персонажи'];
-                              useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, 'Персонаж-')]: minorCharacter});
-                          }}/>
-            </>}
-        {isMinorCharacter && <MinorCharacterHeader {...props}/>}
-        {isImageGen && <ButtonEx className={clsx('bi-image w-[24px] h-[24px]', CONTROL_BTN)} onConfirm={async () => {
-            let book = useBookStore.getState().book;
-
-            console.log(props.keyName)
-
-            const arrPath = [
-                [...props.path, 'Тело/физические характеристики'],
-                [...props.path, 'Стиль и визуальные особенности']
-            ]
-
-            const arr = extractCommonValues(arrPath as string[][]);
-
-            let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
-            let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
-
-            const prompt = template(promptImageCharacter, null, {styleGeneral, styleCharacter, desc: arr.join('\n')});
-
-            const imgBase64 = await toImageGenerate({prompt, param: {aspect_ratio: '3:4'}});
-
-            await useImageStore.getState().addImages(props.keyName + '', imgBase64)
-        }}/>}
-    </>;
-};
-
-function ImagesPanel(props: {
-    idFrame: string,
-    show: boolean,
-    onHide: () => void,
-    arrImgList: [string, unknown][],
-    filter: ([key, arr]: readonly [any, any]) => any,
-    caption: string,
-}) {
-
-    const {frame, setFrame, removeFrame} = useImageStore(useShallow((s) => ({
-        frame: s.frame,
-        setFrame: s.setFrame,
-        removeFrame: s.removeFrame,
-    })));
-
-    // debugger
-    return <Modal show={props.show} onHide={props.onHide} autoSize={false}>
-        <Modal.Header>
-            <Modal.Title className="text-sm">{props.caption}</Modal.Title>
-        </Modal.Header>
-
-        {props.arrImgList?.length > 0 && <div className="py-2 flex flex-wrap gap-3 justify-center w-[60vw]">
-            {props.arrImgList.filter(props.filter).map(([keyName, listImage], i) => {
-                    const arrKey = Object.keys(listImage);
-                    const arrValue = Object.values(listImage);
-
-                    return <div key={i} className={clsx(
-                        'p-3 rounded-sm',
-                        // 'bg-black/5',
-                        'ring-1 ring-black/10 shadow-md'
-                    )}>
-                        <ImageGallery
-                            images={arrValue as string[][]}
-                            onRenderImage={(src, index) => {
-                                return (
-                                    <div className="relative">
-                                        <img id={keyName} src={src} alt={`custom-${index}`}
-                                             className="h-35 object-cover rounded-sm hover:opacity-80 transition"/>
-                                        <Checkbox
-                                            className={clsx(
-                                                "!absolute bottom-0.5 right-0.5 w-5 h-5 bg-white hover:bg-white/80 active:bg-white/60",
-                                                "rounded-sm",
-                                            )}
-                                            checked={frame?.[props.idFrame]?.includes(keyName + '.' + arrKey[index])}
-                                            onChange={(_, checked) => {
-                                                const selectedKey = keyName + '.' + arrKey[index];
-                                                if (checked) {
-                                                    setFrame(props.idFrame, selectedKey);
-                                                } else {
-                                                    removeFrame(props.idFrame, selectedKey);
-                                                }
-                                            }}/>
-                                    </div>
-                                );
-                            }}
-                        />
-                    </div>
-                }
-            )}
-        </div>}
-    </Modal>;
 }
 
 const PlotArc = (props: CallbackParams) => {
@@ -472,14 +506,13 @@ const PlotArc = (props: CallbackParams) => {
     const isSceneHeader = tags?.includes('scene');
     const isFrames = isEqualString(tags, 'frames');
     const isFrame = isEqualString(tags, 'frame');
-
-    // const [_val, set_val] = useState<any>('');
+    const isArt = isEqualString(tags, 'art');
 
     let isOptions = LIST_KEY_NAME[props.keyName];
     let name: any = isOptions ?? props.keyName;
     if (isSceneItem) name = null; // Убираем имя заголовка для сцены
 
-    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader || isFrames || isFrame))
+    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader || isFrames || isFrame || isArt))
         return <div className="text-nowrap">{name}</div>;
 
     return <>
@@ -500,14 +533,16 @@ const PlotArc = (props: CallbackParams) => {
             </div>
         }
         {isPlotArcItem && <div className="flex flex-row gap-1">
-            <ButtonEx className={clsx("bi-plus-circle w-[24px] h-[24px]", CONTROL_BTN)}
+            <ButtonEx className={clsx("w-[24px] h-[24px]", CONTROL_BTN)}
                       onClick={() => {
                           let book = useBookStore.getState().book;
                           const listForCheck = getValueByPath(book, props.path);
-                          useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, 'Сцена-')]: structScene});
-                      }}/>
+                          useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, props.keyName + '-cцена-')]: structScene});
+                      }}>
+                <BsPlusCircle size={14}/>
+            </ButtonEx>
             <ButtonEx
-                className={clsx("bi-stack text-[11px]", CONTROL_BTN)}
+                className={clsx(CONTROL_BTN)}
                 title="Cоздать сцены"
                 description="Cоздать сцены"
                 onConfirm={() => {
@@ -526,7 +561,9 @@ const PlotArc = (props: CallbackParams) => {
                             useBookStore.getState().toggleCollapse([...(props.path), nameScene, '']);
                         })
                     }
-                }}/>
+                }}>
+                <BsStack size={14}/>
+            </ButtonEx>
             <Tooltip text={"Количество сцен"} direction={"right"} className={clsx(
                 'text-gray-500', CONTROL_BTN)}>
                 <InputNumberEditor
@@ -553,6 +590,23 @@ const PlotArc = (props: CallbackParams) => {
             </Tooltip>
 
         </div>}
+        {isArt && <div className="flex flex-row gap-1">
+            <Tooltip text={"Количество параграфов"} direction={"right"} className={clsx(
+                'text-gray-500', CONTROL_BTN)}>
+                <InputNumberEditor
+                    className={"text-center"}
+                    value={props.value.options.quantParagraphs}
+                    doInput={(val: number) => {
+                        if (isNaN(val)) val = 6;
+                        props.toWrite(val, [...(props.path), 'options', 'quantParagraphs']);
+                    }}
+                />
+            </Tooltip>
+            <Tooltip text={"Количество символов"} direction={"right"}
+                     className={clsx(
+                         'text-gray-500', CONTROL_BTN)}>[{Math.round(props.value?.value?.length)}]
+            </Tooltip>
+        </div>}
         {isSceneHeader && <SceneHeader {...props}/>}
     </>;
 };
@@ -569,15 +623,6 @@ const GPTHeader = (props: CallbackParams) => {
             }
         });
     }, []);
-
-    const excludes = props.value?.options?.excludes;
-    const isAllowGPT = !isEqualString(excludes, 'gpt');
-
-    // if(props.keyName.includes('Кадр-v0sOi9u')){
-    //     debugger
-    // }
-
-    if (!isAllowGPT) return null;
 
     const handleTextGPT = useCallback(async (text: string, fnPrompt: {
         requirements: string,
@@ -653,34 +698,68 @@ const GPTHeader = (props: CallbackParams) => {
     const generateTextGPT = useCallback(async () => {
 
         let tags = props.value?.options?.tags;
-        const isIngPattern = isEqualString(tags, 'img-pattern');
+        const isImgPattern = isEqualString(tags, 'sceneImagePrompt');
+        const isArt = isEqualString(tags, 'art');
 
         let book = useBookStore.getState().book;
 
-        if (isIngPattern) {
+        if (isImgPattern) {
 
-            let prompt = '**Задача:** Выступи в роли эксперта по промптингу для AI-генераторов изображений (Nanobana/Stable Diffusion). На основе предоставленного художественного описания сцены, сгенерируй финальный, структурированный промпт, сфокусированный на четком позиционировании и композиции персонажей.\n' +
-                '**Требования к выходному промпту:**\n' +
-                '1.  **Начало:** Начни с определения стиля и ракурса выбери подходящий по смыслу.\n' +
-                '2.  **Композиция:** Используй явную фразу, указывающую на количество персонажей и их общую расстановку (например, "composition with three characters").\n' +
-                '3.  **Структура персонажей:** Опиши каждого персонажа отдельно, используя четкое **позиционирование** и **скобки** для группировки информации. Используй ключевые слова, такие как **(left), (center), (right), (in the foreground), (behind)** (очень точно опиши позицию где именно на сцене находится персонаж) расположение должно соответствовать Художественному описанию сцены.\n' +
-                '4.  **Формат персонажей:** Описание каждого персонажа должно быть структурировано как:\n' +
-                '    `Character N (позиция): [описание персонажа, его поза, **куда смотрит**, действие, детали, (не описывай одежду)].`\n' +
-                '5.  **Контекст и Атмосфера:** В конце промпта добавь общие детали окружения, освещения, и настроения.\n' +
-                '**Художественное описание сцены для преобразования:**\n' +
-                '$artDescImg$' +
-                '**Вывод:** Сгенерируй только финальный, готовый промпт, без лишних комментариев.';
+            const strValue = getValueByPath(book, [...props.path, 'value']) ?? '';
+            const strStyle = book?.['Общие']?.['Визуальный стиль изображений']?.value ?? '';
+            const strDesc = getValueByPath(book, [...props.path, 'Описание сцены', 'value']) ?? '';
+            const strDetails = getValueByPath(book, [...props.path, 'Детали окружения', 'value']) ?? '';
 
-            const artDescImg = book?.['Общие']?.['Визуальный стиль изображений']?.value + '\n' +
-                getValueByPath(book, [...props.path.slice(0, -1), 'Описание сцены', 'value']) + '\n' +
-                getValueByPath(book, [...props.path.slice(0, -1), 'Детали окружения', 'value']);
+            if (!strValue && strStyle && strDesc && strDetails) {
+                const artDescImg = book?.['Общие']?.['Визуальный стиль изображений']?.value + '\n' +
+                    getValueByPath(book, [...props.path.slice(0, -1), 'Описание сцены', 'value']) + '\n' +
+                    getValueByPath(book, [...props.path.slice(0, -1), 'Детали окружения', 'value']);
 
-            prompt = template(prompt, null, {artDescImg});
+                const prompt = template(promptImageScene, null, {artDescImg});
+                let resultStruct = await toGPT(prompt);
 
-            let resultStruct = await toGPT(prompt);
+                props.toWrite(resultStruct, [...props.path, 'sceneImagePrompt']);
+            }
+        }
 
-            props.toWrite(resultStruct, [...props.path, 'value']);
-        } else {
+        // if (isArt) {
+        //
+        //     const COMMON_PATHS: string[][] = [
+        //         ['Общие', 'Жанр'],
+        //         ['Общие', 'Общее настроение'],
+        //         ['Общие', 'Эпоха'],
+        //         ['Общие', 'Возраст аудитории'],
+        //     ] as const;
+        //
+        //     let characters = props.parent['Персонажи'].value;
+        //     // let characters = prepareStructureFirst(book['Персонажи']);
+        //     // characters = prepareStructureSecond(characters, ['options']);
+        //     // characters = JSON.stringify(characters, null, 2);
+        //
+        //     const [genre, mood, age, ageLimit] = extractCommonValues(COMMON_PATHS);
+        //     const quantParagraphs = props?.value?.options?.quantParagraphs ?? 6;
+        //     const author = props?.value?.options?.author || '';
+        //     // const requirements = getValueByPath(book, [...props.path, 'requirements']);
+        //     const requirements =
+        //         `* Жанр: ${genre}\n` +
+        //         `* Общее настроение: ${mood}\n` +
+        //         `* Эпоха": ${age}\n` +
+        //         `* Возрастные ограничения: ${ageLimit}\n` +
+        //         `* Не добавляй новые: имена, факты и предметы\n` +
+        //         `* Описание персонажей: ${characters}`;
+        //     const events = getValueByPath(book, [...props.path.slice(0, -1), 'События', 'value']);
+        //
+        //     let resultStruct = await toGPT(
+        //         promptArt,
+        //         {
+        //             quantParagraphs,
+        //             requirements,
+        //             events,
+        //             author,
+        //         });
+        //
+        //     useBookStore.getState().setAtPath([...props.path, 'value'], resultStruct);
+        // } else {
             let source = JSON.parse(JSON.stringify(book));
             source = prepareStructureFirst(source);
 
@@ -696,6 +775,8 @@ const GPTHeader = (props: CallbackParams) => {
                 if (value?.hasOwnProperty('value')) value.value = '';
                 return value;
             });
+
+            source = deleteFields(source, ['Результат']);
 
             const [obj, key] = getObjectByPath(source, props.path as string[]);
             obj[key] = target;
@@ -720,7 +801,7 @@ const GPTHeader = (props: CallbackParams) => {
                 return value;
             });
 
-            source = prepareStructureSecond(source);
+            source = prepareStructureSecond(source, ['options']);
 
             total = Object.keys(listPathSrc).length;
 
@@ -733,53 +814,78 @@ const GPTHeader = (props: CallbackParams) => {
 
             total = 0;
             eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
-
             applyGPTResult(resultStruct, listPathSrc);
-        }
+        // }
+
     }, []);
 
     const {
-        addEvil, addKindness, addNegative, addPositive, collapseText, expandText, inverseText, addActions, addImprove
+        addEvil,
+        addKindness,
+        addNegative,
+        addPositive,
+        collapseText,
+        expandText,
+        inverseText,
+        addActions,
+        addImprove,
+        humanize
     } = fnPromptTextHandling;
 
     const isValue = props.value?.hasOwnProperty('value') && typeof props.value.value !== "object";
 
     return <>
-        <ButtonEx className={clsx('bi-stars w-[24px] h-[24px]', CONTROL_BTN)}
-                  onConfirm={() => generateTextGPT()} title="Генерация" description="Генерация"/>
+        <ButtonEx className={clsx('w-[24px] h-[24px]', CONTROL_BTN)}
+                  onConfirm={() => generateTextGPT()} title="Генерация" description="Генерация">
+            <BsStars size={14}/>
+        </ButtonEx>
         {isValue &&
-            <DropdownButton title={<div className="bi-three-dots-vertical"/>} className={'px-1 ' + CONTROL_BTN}
+            <DropdownButton title={<BsThreeDotsVertical size={14}/>} className={'px-1 ' + CONTROL_BTN}
                             isChevron={false}>
                 <div className={clsx(
                     'flex flex-col bg-white gap-0.5',
                     'outline-1 outline-gray-200 rounded-[5px] p-2'
                 )}>
-                    <ButtonEx className={clsx('bi-sun w-[24px] h-[24px]')} stopPropagation={true}
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, addKindness, props.path)}
-                              title={addKindness.desc}/>
-                    <ButtonEx className={clsx('bi-cloud-rain w-[24px] h-[24px]')} stopPropagation={true}
-                              onAction={() => handleTextGPT(props.value, addEvil, props.path)} title={addEvil.desc}/>
-                    <ButtonEx className={clsx('bi-emoji-smile w-[24px] h-[24px]')} stopPropagation={true}
+                              title={addKindness.desc}>
+                        <BsSun/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
+                              onAction={() => handleTextGPT(props.value, addEvil, props.path)} title={addEvil.desc}>
+                        <BsCloudRain/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, addPositive, props.path)}
-                              title={addPositive.desc}/>
-                    <ButtonEx className={clsx('bi-emoji-frown w-[24px] h-[24px]')} stopPropagation={true}
+                              title={addPositive.desc}>
+                        <BsEmojiSmile/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, addNegative, props.path)}
-                              title={addNegative.desc}/>
-                    <ButtonEx className={clsx('bi-arrows-fullscreen w-[24px] h-[24px]')} stopPropagation={true}
+                              title={addNegative.desc}>
+                        <BsEmojiFrown/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, expandText, props.path)}
-                              title={expandText.desc}/>
-                    <ButtonEx className={clsx('bi-arrows-collapse-vertical w-[24px] h-[24px]')} stopPropagation={true}
+                              title={expandText.desc}>
+                        <BsArrowsFullscreen/></ButtonEx>
+                    <ButtonEx className={clsx('vertical w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, collapseText, props.path)}
-                              title={collapseText.desc}/>
-                    <ButtonEx className={clsx('bi-circle-half w-[24px] h-[24px]')} stopPropagation={true}
+                              title={collapseText.desc}>
+                        <BsArrowsCollapse/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, inverseText, props.path)}
-                              title={inverseText.desc}/>
-                    <ButtonEx className={clsx('bi-lightning w-[24px] h-[24px]')} stopPropagation={true}
+                              title={inverseText.desc}>
+                        <BsCircleHalf/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, addActions, props.path)}
-                              title={addActions.desc}/>
-                    <ButtonEx className={clsx('bi-check-all w-[24px] h-[24px]')} stopPropagation={true}
+                              title={addActions.desc}>
+                        <BsLightning/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
                               onAction={() => handleTextGPT(props.value, addImprove, props.path)}
-                              title={addImprove.desc}/>
+                              title={addImprove.desc}>
+                        <BsCheckAll/></ButtonEx>
+                    <ButtonEx className={clsx('w-[24px] h-[24px]')} stopPropagation={true}
+                              onAction={() => handleTextGPT(props.value, humanize, props.path)}
+                              title={humanize.desc}>
+                        <ImMan/>
+                    </ButtonEx>
                 </div>
             </DropdownButton>}
     </>
@@ -815,26 +921,28 @@ export const clbHeader: Clb = (props: CallbackParams) => {
         {!isOptions && <GPTHeader {...props}/>}
         {!isOptions && <div className="flex flex-row flex-1 justify-end">
             <ButtonEx // Кнопка очистить поля
-                className={clsx("bi-eraser-fill w-[24px] h-[24px] hover:!bg-sky-600 hover:text-white transition", CONTROL_BTN)}
+                className={clsx("w-[24px] h-[24px] hover:!bg-sky-600 hover:text-white transition", CONTROL_BTN)}
                 description="Очистить"
                 onConfirm={() => walkAndFilter(props.value, ({key, value, arrPath}) => {
                     key == 'value' && useBookStore.getState().setAtPath(props.path.concat(arrPath), '');
                     return value;
-                })}/>
+                })}>
+                <BsEraserFill size={14}/>
+            </ButtonEx>
             {options?.tags?.includes('deletable') && <ButtonEx
-                className={
-                    clsx("bi-x-lg w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition", CONTROL_BTN)
-                }
+                className={clsx("hover:!bg-red-700 hover:text-white transition", CONTROL_BTN)}
                 description="Удалить"
-                onConfirm={() => useBookStore.getState().removeAtPath(props.path)}/>}
-            {(props.value?.desc || props.value?.examples || props.value?.requirements) && <ButtonEx className={clsx(
-                props.value?.options?.forcedIncludes ? 'bi-gear-fill' : 'bi-gear',
-                'w-[24px] h-[24px]',
-                CONTROL_BTN,
-            )} onClick={() => {
-                const _path = [...(props.path), 'options', 'forcedIncludes'];
-                useBookStore.getState().setAtPath(_path, props.value?.options?.forcedIncludes ? '' : SET_OPTIONS);
-            }}/>}
+                onConfirm={() => useBookStore.getState().removeAtPath(props.path)}>
+                <BsX size="16"/>
+            </ButtonEx>}
+            {(props.value?.desc || props.value?.examples || props.value?.requirements || props.value?.sceneImagePrompt) &&
+                <ButtonEx className={clsx('w-[24px] h-[24px]', CONTROL_BTN,)} onClick={() => {
+                    const _path = [...(props.path), 'options', 'forcedIncludes'];
+                    useBookStore.getState().setAtPath(_path, props.value?.options?.forcedIncludes ? '' : SET_OPTIONS);
+                }}>
+                    {props.value?.options?.forcedIncludes ? <BsGearFill size={14}/> : <BsGear size={14}/>}
+                </ButtonEx>
+            }
         </div>}
     </div>
 }
