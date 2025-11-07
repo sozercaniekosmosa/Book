@@ -94,6 +94,7 @@ const ButtonEx: FC<IButtonExProps> = ({
 
     return <>
         {!hidden && <button
+            type="button"
             autoFocus={autoFocus}
             style={style}
             className={clsx(

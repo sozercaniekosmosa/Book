@@ -112,7 +112,7 @@ export async function getImageOpenAPI(prompt: string, param: any, api_key: strin
     }
 }
 
-export async function OpenAPI(system: string, user: string, progressID: string, api_key: string) {
+export async function OpenAPI(system: string, user: string, progressID: string, api_key: string, llm: number) {
 
     try {
         const openai = new OpenAI({
@@ -129,15 +129,30 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
         });
 
         // плохие
-        // const model = "thedrummer/cydonia-24b-v4.1"//..s
-        // const model = "openai/gpt-4.1-nano"//..s
-        // const model = "qwen/qwq-32b"//..s
+        // const model = "thedrummer/cydonia-24b-v4.1";
+        // const model = "openai/gpt-4.1-nano";
+        // const model = "qwen/qwq-32b";
 
         // тестим
-        // const model = "anthropic/claude-haiku-4.5"//..s
-        const model = "google/gemini-2.0-flash-001"//..s
-        // const model = "google/gemini-2.5-flash-lite"//..s
-        // const model = "google/gemini-2.5-flash-lite-preview-09-2025"//..s
+        let model: string;
+        switch (llm) {
+            case 0:
+                model = "google/gemini-2.0-flash-001";
+                break;
+            case 1:
+                // model = "google/gemini-2.5-flash-lite";
+                model = "google/gemini-2.5-flash-lite-preview-09-2025";
+                break;
+            case 2:
+                model = "anthropic/claude-haiku-4.5";
+                break;
+            case 3:
+                // model = "openai/gpt-5-chat";
+                model = "anthropic/claude-sonnet-4";
+                break;
+            default:
+                model = "google/gemini-2.0-flash-001";
+        }
 
         console.log(model);
 

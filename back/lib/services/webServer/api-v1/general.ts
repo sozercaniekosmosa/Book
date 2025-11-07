@@ -71,10 +71,10 @@ routerGeneral.get('/is-allow-host-port/:host/:port', async (req, res) => {
 });
 
 routerGeneral.post('/gpt', async (req, res) => {
-    const {body: {id, type, user, system, progressID}} = req;
+    const {body: {user, system, progressID, llm}} = req;
     let textGPT = '';
     try {
-        textGPT = await OpenAPI(system, user, progressID, OPENROUTER_API_KEY);
+        textGPT = await OpenAPI(system, user, progressID, OPENROUTER_API_KEY, llm);
 
         res.status(200).send(textGPT);
     } catch (error) {
@@ -83,7 +83,7 @@ routerGeneral.post('/gpt', async (req, res) => {
     }
 });
 routerGeneral.post('/image', async (req, res) => {
-    const {body: {id, type, prompt, param}} = req;
+    const {body: {prompt, param}} = req;
     let textGPT = '';
     try {
         textGPT = await getImageOpenAPI(prompt, param, OPENROUTER_API_KEY);

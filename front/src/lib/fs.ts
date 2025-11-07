@@ -25,24 +25,49 @@ export function saveUnitArrayAsFile(filename, encoded) {
 }
 
 /**
- * Сохраняет Blob как файл с указанным именем
- * @param blob - Blob, который нужно сохранить
- * @param filename - Имя файла (по умолчанию 'download')
+ * Save arrayBuffe to file
+ * @param arrayBuffer
+ * @param fileName
+ * @param fileType
  */
-export const saveBlobAsFile = (blob: Blob, filename: string = 'download'): void => {
-    // Создаём временный URL для Blob
-    const url = URL.createObjectURL(blob);
+export default async function saveFile(arrayBuffer: ArrayBuffer, fileName: string, fileType: string) {
+    return new Promise<void>((resolve, reject) => {
+        const dataView = new DataView(arrayBuffer);
+        const blob = new Blob([dataView], {type: fileType});
 
-    // Создаём скрытый <a> элемент
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename; // Указываем имя файла для скачивания
-
-    // Добавляем ссылку в DOM, кликаем по ней и удаляем
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Освобождаем память, отменяя URL
-    URL.revokeObjectURL(url);
-};
+        // @ts-ignore
+        if (navigator.msSaveBlob) {
+            // @ts-ignore
+            navigator.msSaveBlob(blob, fileName);
+            return resolve();
+        } else if (/iPhone|fxios/i.test(navigator.userAgent)) {
+            // This method is much slower but createObjectURL
+            // is buggy on iOS
+            const reader = new FileReader();
+            reader.addEventListener('loadend', () => {
+                if (reader.error) {
+                    return reject(reader.error);
+                }
+                if (reader.result) {
+                    const a = document.createElement('a');
+                    // @ts-ignore
+                    a.href = reader.result;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                }
+                resolve();
+            });
+            reader.readAsDataURL(blob);
+        } else {
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(downloadUrl);
+            setTimeout(resolve, 100);
+        }
+    });
+}

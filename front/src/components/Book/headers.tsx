@@ -13,30 +13,36 @@ import {structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {addImage, mergeBase64Images, openBase64ImageInNewTab, toGPT, toImageGenerate} from "./general.utils.ts";
-import {fnPromptTextHandling, promptArt, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
+import {addImage, mergeBase64Images, toGPT, toImageGenerate} from "./general.utils.ts";
+import {fnPromptTextHandling, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
 import DropdownButton from "../Auxiliary/DropdownButton.tsx";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
 import {
     BsArrowsCollapse,
-    BsArrowsFullscreen, BsCheckAll, BsCircle,
+    BsArrowsFullscreen,
+    BsCheckAll,
     BsCircleHalf,
-    BsCloudRain, BsEmojiFrown,
-    BsEmojiSmile, BsEraserFill,
-    BsFillPeopleFill, BsGear, BsGearFill,
-    BsImage, BsLightning,
+    BsCloudRain,
+    BsEmojiFrown,
+    BsEmojiSmile,
+    BsEraserFill,
+    BsFillPeopleFill,
+    BsGear,
+    BsGearFill,
+    BsImage,
+    BsLightning,
     BsPlusCircle,
     BsStack,
-    BsStars, BsSun,
-    BsThreeDotsVertical, BsX
+    BsStars,
+    BsSun,
+    BsThreeDotsVertical,
+    BsX
 } from "react-icons/bs";
-import {RiImageAiFill, RiParagraph} from "react-icons/ri";
+import {RiImageAiFill} from "react-icons/ri";
 import Checkbox from "../Auxiliary/Checkbox.tsx";
 import {useShallow} from "zustand/react/shallow";
-import {GiSpellBook} from "react-icons/gi";
-import {IoMdMan} from "react-icons/io";
 import {ImMan} from "react-icons/im";
 
 // @ts-ignore
@@ -293,7 +299,7 @@ const Characters = (props: CallbackParams) => {
                     useBookStore.getState().mergeAtPath(['Персонажи', 'Все персонажи'], {value: arr.join('\n')});
                 }
             }}>
-                {/*<BsStack size={24}/>*/}
+                <BsStack size={14}/>
             </ButtonEx>
         </div>}
         { // Персонажи кнопка [+]
@@ -695,7 +701,7 @@ const GPTHeader = (props: CallbackParams) => {
 
     }, []);
 
-    const generateTextGPT = useCallback(async () => {
+    const generateTextGPT = useCallback(async (llm: number) => {
 
         let tags = props.value?.options?.tags;
         const isImgPattern = isEqualString(tags, 'sceneImagePrompt');
@@ -721,102 +727,61 @@ const GPTHeader = (props: CallbackParams) => {
                 props.toWrite(resultStruct, [...props.path, 'sceneImagePrompt']);
             }
         }
+        let source = JSON.parse(JSON.stringify(book));
+        source = prepareStructureFirst(source);
 
-        // if (isArt) {
-        //
-        //     const COMMON_PATHS: string[][] = [
-        //         ['Общие', 'Жанр'],
-        //         ['Общие', 'Общее настроение'],
-        //         ['Общие', 'Эпоха'],
-        //         ['Общие', 'Возраст аудитории'],
-        //     ] as const;
-        //
-        //     let characters = props.parent['Персонажи'].value;
-        //     // let characters = prepareStructureFirst(book['Персонажи']);
-        //     // characters = prepareStructureSecond(characters, ['options']);
-        //     // characters = JSON.stringify(characters, null, 2);
-        //
-        //     const [genre, mood, age, ageLimit] = extractCommonValues(COMMON_PATHS);
-        //     const quantParagraphs = props?.value?.options?.quantParagraphs ?? 6;
-        //     const author = props?.value?.options?.author || '';
-        //     // const requirements = getValueByPath(book, [...props.path, 'requirements']);
-        //     const requirements =
-        //         `* Жанр: ${genre}\n` +
-        //         `* Общее настроение: ${mood}\n` +
-        //         `* Эпоха": ${age}\n` +
-        //         `* Возрастные ограничения: ${ageLimit}\n` +
-        //         `* Не добавляй новые: имена, факты и предметы\n` +
-        //         `* Описание персонажей: ${characters}`;
-        //     const events = getValueByPath(book, [...props.path.slice(0, -1), 'События', 'value']);
-        //
-        //     let resultStruct = await toGPT(
-        //         promptArt,
-        //         {
-        //             quantParagraphs,
-        //             requirements,
-        //             events,
-        //             author,
-        //         });
-        //
-        //     useBookStore.getState().setAtPath([...props.path, 'value'], resultStruct);
-        // } else {
-            let source = JSON.parse(JSON.stringify(book));
-            source = prepareStructureFirst(source);
+        let target = JSON.parse(JSON.stringify(props.value));
 
-            let target = JSON.parse(JSON.stringify(props.value));
+        let numberValue = 0;
+        walkAndFilter(target, ({value}) => {
+            if (value?.hasOwnProperty('value')) numberValue++;
+            return value;
+        });
 
-            let numberValue = 0;
-            walkAndFilter(target, ({value}) => {
-                if (value?.hasOwnProperty('value')) numberValue++;
-                return value;
-            });
+        if (numberValue == 1) target = walkAndFilter(target, ({value}) => {
+            if (value?.hasOwnProperty('value')) value.value = '';
+            return value;
+        });
 
-            if (numberValue == 1) target = walkAndFilter(target, ({value}) => {
-                if (value?.hasOwnProperty('value')) value.value = '';
-                return value;
-            });
+        source = deleteFields(source, ['Результат']);
 
-            source = deleteFields(source, ['Результат']);
+        const [obj, key] = getObjectByPath(source, props.path as string[]);
+        obj[key] = target;
 
-            const [obj, key] = getObjectByPath(source, props.path as string[]);
-            obj[key] = target;
+        const listPathSrc = {};
+        source = walkAndFilter(source, ({value, arrPath}) => {
+            if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
 
-            const listPathSrc = {};
-            source = walkAndFilter(source, ({value, arrPath}) => {
-                if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
+                const id = generateUID();
+                listPathSrc[id] = [...arrPath, 'value'];
+                value.id = id;
+                value.target = '';
+                delete value.value;
 
-                    const id = generateUID();
-                    listPathSrc[id] = [...arrPath, 'value'];
-                    value.id = id;
-                    value.target = '';
-                    delete value.value;
-
-                    if (value?.hasOwnProperty('options')) { // Подстановка значений
-                        const strValue = JSON.stringify(value);
-                        const _strValue = template(strValue, null, {...value.options});
-                        value = JSON.parse(_strValue);
-                    }
-
+                if (value?.hasOwnProperty('options')) { // Подстановка значений
+                    const strValue = JSON.stringify(value);
+                    const _strValue = template(strValue, null, {...value.options});
+                    value = JSON.parse(_strValue);
                 }
-                return value;
-            });
 
-            source = prepareStructureSecond(source, ['options']);
+            }
+            return value;
+        });
 
-            total = Object.keys(listPathSrc).length;
+        source = prepareStructureSecond(source, ['options']);
 
-            let resultStruct = await toGPT(
-                promptWrite,
-                {
-                    source: JSON.stringify(source, null, 2),
-                    path: '["' + props.path.join('"."') + '"]'
-                });
+        total = Object.keys(listPathSrc).length;
 
-            total = 0;
-            eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
-            applyGPTResult(resultStruct, listPathSrc);
-        // }
+        let resultStruct = await toGPT(
+            promptWrite,
+            {
+                source: JSON.stringify(source, null, 2),
+                path: '["' + props.path.join('"."') + '"]'
+            }, llm);
 
+        total = 0;
+        eventBus.dispatchEvent('message-local', {type: 'progress', data: 0})
+        applyGPTResult(resultStruct, listPathSrc);
     }, []);
 
     const {
@@ -835,10 +800,24 @@ const GPTHeader = (props: CallbackParams) => {
     const isValue = props.value?.hasOwnProperty('value') && typeof props.value.value !== "object";
 
     return <>
-        <ButtonEx className={clsx('w-[24px] h-[24px]', CONTROL_BTN)}
-                  onConfirm={() => generateTextGPT()} title="Генерация" description="Генерация">
+        <ButtonEx className={clsx('w-[24px] h-[24px] hover:!bg-green-400 hover:text-white transition', CONTROL_BTN)}
+                  onConfirm={() => generateTextGPT(0)} title="Генерация простая" description="Генерация простая">
             <BsStars size={14}/>
         </ButtonEx>
+        <ButtonEx className={clsx('w-[24px] h-[24px] hover:!bg-teal-500 hover:text-white transition', CONTROL_BTN)}
+                  onConfirm={() => generateTextGPT(1)} title="Генерация простая +кэш"
+                  description="Генерация простая +кэш">
+            <BsStars size={14}/>
+        </ButtonEx>
+        <ButtonEx className={clsx('w-[24px] h-[24px] hover:!bg-amber-500 hover:text-white transition', CONTROL_BTN)}
+                  onConfirm={() => generateTextGPT(2)} title="Генерация средняя" description="Генерация средняя">
+            <BsStars size={14}/>
+        </ButtonEx>
+        {/*<ButtonEx className={clsx('w-[24px] h-[24px] hover:!bg-red-500 hover:text-white transition', CONTROL_BTN)}*/}
+        {/*          onConfirm={() => generateTextGPT(3)} title="Генерация максимальная"*/}
+        {/*          description="Генерация максимальная">*/}
+        {/*    <BsStars size={14}/>*/}
+        {/*</ButtonEx>*/}
         {isValue &&
             <DropdownButton title={<BsThreeDotsVertical size={14}/>} className={'px-1 ' + CONTROL_BTN}
                             isChevron={false}>

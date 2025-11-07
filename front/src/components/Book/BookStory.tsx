@@ -15,11 +15,9 @@ import Modal from "../Auxiliary/ModalWindow.tsx";
 import {Tab, Tabs} from "../Auxiliary/Tabs.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {RiFlowerFill} from "react-icons/ri";
-import {saveBlobAsFile} from "../../lib/fs.ts";
+import saveFile from "../../lib/fs.ts";
 import JSZip from "jszip";
 import {FaRegFolder} from "react-icons/fa";
-import dataBook from "./data/data.json" with {type: "json"};
-import dataImage from "./data/images.json" with {type: "json"};
 
 export const LIST_KEY_NAME = {
     desc: 'Описание',
@@ -242,10 +240,9 @@ export const StoryEditor: React.FC = () => {
                           zip.file('book', JSON.stringify(useBookStore.getState().book));
                           zip.file('images', JSON.stringify(useImageStore.getState()));
 
-                          zip.generateAsync({type: 'blob'}).then(function (content) {
-                              saveBlobAsFile(content, bookName + '.book');
+                          zip.generateAsync({type: 'blob'}).then(async content => {
+                              await saveFile(await content.arrayBuffer(), bookName + '.book', 'book');
                           });
-
                       }}><BiSave/></ButtonEx>
             <ButtonEx className="w-[24px] h-[24px]"
                       onClick={() => {

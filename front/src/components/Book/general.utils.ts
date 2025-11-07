@@ -34,13 +34,14 @@ export const handleValue = (value: string) => {
 //     arrDifference.length && console.log(...arrDifference);
 // }
 
-export async function callGPT({system, user = null, progressID = null, method = 'gpt'}) {
+export async function callGPT({system, user = null, progressID = null, method = 'gpt', llm}) {
     // textContent = glob.selectedText ?? textContent;
     try {
         const {data: text} = await axios.post(glob.hostAPI + method, {
             user,
             system,
-            progressID
+            progressID,
+            llm
         });
 
         return text;
@@ -50,10 +51,10 @@ export async function callGPT({system, user = null, progressID = null, method = 
     }
 }
 
-export const toGPT = async (prompt: string, param?: any) => {
+export const toGPT = async (prompt: string, param?: any, llm = 0) => {
 
     const promptBuild = param ? template(prompt, null, {...param}) : prompt;
-    const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite'});
+    const responseGPT = await callGPT({system: promptBuild, progressID: 'rewrite', llm});
 
     return typeof responseGPT == 'string' ? responseGPT.replace(/```json|```/g, '') : responseGPT;
 
