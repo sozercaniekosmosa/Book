@@ -156,6 +156,24 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
 
         console.log(model);
 
+        const RESPONSE_SCHEMA = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The unique identifier of the scene/element."
+                    },
+                    "target": {
+                        "type": "string",
+                        "description": "The literary processed text according to the prompt requirements."
+                    }
+                },
+                "required": ["id", "target"]
+            }
+        };
+
         const response = await openai.chat.completions.create({
             model,
             messages: system && user ? [
@@ -180,6 +198,16 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
             // presence_penalty: 1.5, // от -2.0 до 2.0, поощрение упоминания новых тем
 
             // response_format: {"type": "json_object"},
+
+            // **Ключевой элемент для Structured Output в OpenAI API**
+            response_format: {
+                type: "json_schema",
+                /*@ts-ignore*/
+                schema: RESPONSE_SCHEMA,
+                strict: true // Гарантирует максимально строгое соблюдение схемы
+            },
+            temperature: 0.8, // Повышаем для более творческого текста
+
         });
 
 

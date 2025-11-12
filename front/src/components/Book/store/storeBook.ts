@@ -187,6 +187,8 @@ export interface StoreImage {
     setFrame: (id: string, val: string) => void;
     removeFrame: (id: string, val: string) => void;
 
+    removeAll: () => void;
+
     setStore: (store: any) => void;
 }
 
@@ -222,7 +224,6 @@ export const useImageStore = create<StoreImage>()(
                 },
                 removeFrame: (id, idImg) => {
                     set(state => {
-                        // state.frame[id] = [...state.frame[id]].filter(it => it != val)
                         if (state?.frame?.[id]?.[idImg]) {
                             delete state.frame[id][idImg];
                         } else if (Array.isArray(state?.frame?.[id])) {
@@ -236,6 +237,11 @@ export const useImageStore = create<StoreImage>()(
                 }),
                 forceUpdate: () => set(state => ({
                     revision: state.revision + 1
+                })),
+                removeAll: () => set(state => ({
+                    revision: 0,
+                    images: {},
+                    frame: {},
                 }))
             })),
         {

@@ -15,21 +15,34 @@
 // "Исходные данные":
 // $source$`
 
+// export const promptWrite = `
+// Ты — профессиональный литературный ассистент.
+//
+// Тебе дан блок "Исходные данные".
+// Твоя задача:
+//
+// 1. Заполняй только "target".
+// 2. Используй "requirements" как основное руководство.
+// 3. Используй поля "desc", "example", "value" и "variants" как подсказки для генерации содержимого, сохраняя соответствие логике, теме и стилю произведения, но их не выводи.
+// 4. Если в поле "variants" указан массив, выбери наиболее подходящий вариант или несколько вариантов, исходя из контекста и требований.
+// 5. Соблюдай единый стиль, грамотность, тональность всего текста и реалистичность для жанра и ситуации.
+// 6. Структуру JSON не изменяй и новые ключи не добавляй (поля id не меняй).
+// 7. В результат выведи в виде массива все "target" и "id".
+//
+// "Исходные данные":
+// $source$`
+
 export const promptWrite = `
-Ты — профессиональный литературный ассистент.
-
-Тебе дан блок "Исходные данные". 
-Твоя задача:
-
-1. Заполняй только "target". 
-2. Используй "requirements" как основное руководство.
-3. Используй поля "desc", "example", "value" и "variants" как подсказки для генерации содержимого, сохраняя соответствие логике, теме и стилю произведения, но их не выводи.
-4. Если в поле "variants" указан массив, выбери наиболее подходящий вариант или несколько вариантов, исходя из контекста и требований.
-5. Соблюдай единый стиль, грамотность, тональность всего текста и реалистичность для жанра и ситуации.
-6. Структуру JSON не изменяй и новые ключи не добавляй (поля id не меняй).
-7. В результат выведи в виде массива все "target" и "id".
-
-"Исходные данные":
+You are a Professional Literary Assistant.
+You are provided with a "Source Data" JSON object. Your primary task is to complete the JSON structure based on the instructions below.
+Instructions:
+Strictly fill only the "target" fields within the provided JSON structure, taking into account the nesting and logic of this structure.
+Use the contents of the "requirements" field as the main generation guide.
+Use the contents of the "desc", "example", "value", and "variants" fields as contextual hints for content generation, ensuring adherence to the overall logic, theme, and literary style of the work. Do not output these hint fields in the final result.
+Maintain a consistent style, tone, literary quality, and genre realism throughout the generated text.
+Do not alter the JSON structure or add any new keys (do not change the "id" fields).
+The final output must be a JSON Array containing only the "id" and the generated "target" fields from the initial structure.
+Source Data:
 $source$`
 
 // export const promptArt =

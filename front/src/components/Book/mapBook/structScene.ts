@@ -45,7 +45,7 @@ export const structScene = {
         example:
             '- Сергей (Главный герой и друг Анны) стоял у окна облоктившись на стену слева от кресла' +
             '- Максим (отец Бориса) сидел в кресле в середине комнаты' +
-            '- Свенсон (Антогонист) уверенно направился к открывшемуся проходу',
+            '- Свенсон (Антагонист) уверенно направился к открывшемуся проходу',
         value: ''
     },
     'Детали окружения': {
@@ -93,21 +93,46 @@ export const structScene = {
         value: ''
     },
     'Результат': {
-        options: {excludes: 'toggle desc requirements example', /*tags: 'art',*/ quantParagraphs: 6},
+        options: {excludes: 'toggle desc requirements example', tags: 'art', quantParagraphs: 6},
         desc: 'Литературно переработаный текст',
-        requirements: 'Act as a professional fiction writer.\n' +
-            'Transform the following scene description into a vivid, cinematic literary passage in Russian.\n' +
+        requirements:
+            'Act as a professional fiction writer.\n' +
+            'Transform the *События* of scene [$sceneName$] by describing its *Описание сцены* and *Детали окружения* into a vivid, cinematic literary passage in Russian.\n' +
             'Preserve meaning and sequence, but express everything through imagery, emotion, and natural dialogue.\n' +
             'Show, don’t tell. Add atmosphere, gestures, and inner tension.\n' +
             'Transform the following scene according to two crucial factors: perplexity and burstiness.\n' +
             '* Perplexity refers to the linguistic and structural complexity of the text.\n' +
             '* Burstiness reflects variation in sentence length, rhythm, and intensity.\n' +
             'Rewrite the text so that it demonstrates a high level of both perplexity and burstiness, while maintaining coherence and meaning.\n' +
+            'Write in the style of modern literary prose with dialogue and turns of phrase that are natural to the Russian language.\n' +
             '\n' +
-            'Write in the style of modern literary prose.\n' +
-            '\n' +
-            'Output:\n' +
-            '[Выведи только результат: литературный текст, не менее $quantParagraphs$ абзацев, с естественными диалогами, плавным ритмом, атмосферой]',
+            'Output Format and Style Instructions:\n' +
+            'Content: Output only the generated literary text, without any introductory phrases, comments, or explanations.\n' +
+            'Length: The text must contain at least $quantParagraphs$ letters.\n' +
+            'Dialogue: Every new utterance in the dialogue must start on a new line.\n' +
+            'Rhythm and Atmosphere: The text must possess a smooth, flowing rhythm and a strong, consistently maintained atmosphere (e.g., melancholy, tension, tranquility, etc.).',
         value: ''
     }
 };
+
+export const structEventResult = {
+    options: {tags: 'event deletable', excludes: 'desc'},
+    desc: 'Литературное описаное событие',
+    requirements:
+        'Act as a professional fiction writer.\n' +
+        'Transform the *События* of scene [$sceneName$] by describing its *Описание сцены* and *Детали окружения* into a vivid, cinematic literary passage in Russian.\n' +
+        'Preserve meaning and sequence, but express everything through imagery, emotion, and natural dialogue.\n' +
+        'Show, don’t tell. Add atmosphere, gestures, and inner tension.\n' +
+        'Transform the following scene according to two crucial factors: perplexity and burstiness.\n' +
+        '* Perplexity refers to the linguistic and structural complexity of the text.\n' +
+        '* Burstiness reflects variation in sentence length, rhythm, and intensity.\n' +
+        'Rewrite the text so that it demonstrates a high level of both perplexity and burstiness, while maintaining coherence and meaning.\n' +
+        'Write in the style of modern literary prose with dialogue and turns of phrase that are natural to the Russian language.\n' +
+        '\n' +
+        'Output Format and Style Instructions:\n' +
+        'Content: Output only the generated literary text, without any introductory phrases, comments, or explanations.\n' +
+        'Length: The text must contain at least $quantParagraphs$ letters.\n' +
+        'Dialogue: Every new utterance in the dialogue must start on a new line.\n' +
+        'Rhythm and Atmosphere: The text must possess a smooth, flowing rhythm and a strong, consistently maintained atmosphere (e.g., melancholy, tension, tranquility, etc.).',
+    value: ''
+}

@@ -154,7 +154,7 @@ export const StoryEditor: React.FC = () => {
             if (isImgScene) {
                 const extras = _frames.flatMap(([_, v]) => {
                     const [name, idx] = String(v).split('.');
-                    return ['Персонаж', 'Главный', 'Антогонист', 'Кадр'].some(n => name.includes(n))
+                    return ['Персонаж', 'Главный', 'Антагонист', 'Кадр'].some(n => name.includes(n))
                         ? images[name]?.[idx]
                             ? [images[name][idx]]
                             : []
@@ -213,7 +213,10 @@ export const StoryEditor: React.FC = () => {
     return (<>
         <div className="flex gap-2">
             <ButtonEx className="w-[24px] h-[24px]"
-                      onConfirm={() => useBookStore.getState().setAtPath([], structPlot)}
+                      onConfirm={() => {
+                          useBookStore.getState().setAtPath([], structPlot);
+                          useImageStore.getState().removeAll();
+                      }}
                       description="Очистить"><BiReset/></ButtonEx>
             <ButtonEx className="w-[24px] h-[24px]"
                       typeFiles=".book"
@@ -233,7 +236,7 @@ export const StoryEditor: React.FC = () => {
                       typeFiles=".book"
                       onClick={() => {
                           // saveTextAsFile(useBookStore.getState().book, 'book.json');
-                          // console.log(useBookStore.getState().book);
+                          console.log(useBookStore.getState().book);
 
                           const zip = new JSZip();
                           const bookName = useBookStore.getState().book['Общие']['Название'].value

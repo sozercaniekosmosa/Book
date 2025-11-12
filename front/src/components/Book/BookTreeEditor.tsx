@@ -275,8 +275,6 @@ export const BookTreeEditor: React.FC<Props> = ({
     })));
 
     if (!book) return null;
-    // useImageStore.getState().forceUpdate()
-    // console.log(useImageStore.getState())
     return (
         <NodeMemo
             key={`root-${revision}`} // Добавляем ревизию в key корневого элемента
