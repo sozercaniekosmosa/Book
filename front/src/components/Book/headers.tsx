@@ -9,7 +9,7 @@ import ButtonEx from "../Auxiliary/ButtonEx.tsx";
 import clsx from "clsx";
 import {structPlotArc5, structPlotArc8, structPlotArcHero, structPlotArcTravelCase} from "./mapBook/structArcs.ts";
 import {minorCharacter} from "./mapBook/structCharacters.ts";
-import {structScene} from "./mapBook/structScene.ts";
+import {structEventResult, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
@@ -128,11 +128,12 @@ const prepareStructureFirst = (dataStruct: any) => {
 
     const dataFilteredEmptyVal = walkAndFilter(dataStruct, ({parent, key, value}) => {
 
+        if (value?.hasOwnProperty('value') && typeof value.value != "object" && !value?.options?.tags?.includes('incompressible'))
+            return value.value; // Сжимаем объект в каждый узел подставляем значение value
+
         if (parent?.hasOwnProperty('value') && parent.value == '') return null;
         if (value?.hasOwnProperty('value') && value.value == '') return null;
         if (key != 'value' && isEmpty(value)) return null; // Убираем пустые узлы типа: {}
-        if (value?.hasOwnProperty('value') && typeof value.value != "object" && !value?.options?.tags?.includes('incompressible'))
-            return value.value; // Сжимаем объект в каждый узел подставляем значение value
 
         return value;
     })
@@ -205,7 +206,7 @@ const InputNumberEditor = ({doInput, value, className = ''}) => {
                        doInput(+curVal);
                    }
                }}
-               className={'w-[1.5em] ' + className}
+               className={'w-[3em] ' + className}
         />
     </div>;
 };
@@ -514,6 +515,8 @@ const PlotArc = (props: CallbackParams) => {
     const isPlotArc = isEqualString(tags, 'plot-arc');
     const isPlotArcItem = tags?.includes('plot-arc-item');
     const isArcEventsItem = tags?.includes('arc-events');
+    const isEvent = isEqualString(tags, 'event');
+
     const isSceneHeader = tags?.includes('scene');
     const isFrames = isEqualString(tags, 'frames');
     const isFrame = isEqualString(tags, 'frame');
@@ -522,8 +525,9 @@ const PlotArc = (props: CallbackParams) => {
     let isOptions = LIST_KEY_NAME[props.keyName];
     let name: any = isOptions ?? props.keyName;
     if (isSceneItem) name = null; // Убираем имя заголовка для сцены
+    if (isEvent) name = 'Событие';
 
-    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader || isFrames || isFrame || isArt))
+    if (!(isSceneItem || isPlotArc || isPlotArcItem || isArcEventsItem || isSceneHeader || isFrames || isFrame || isArt || isEvent))
         return <div className="text-nowrap">{name}</div>;
 
     return <>
@@ -599,23 +603,31 @@ const PlotArc = (props: CallbackParams) => {
                     }}
                 />
             </Tooltip>
-
+            <ButtonEx className={clsx("w-[24px] h-[24px]", CONTROL_BTN)}
+                      title={'Добавить событие'}
+                      onClick={() => {
+                          let book = useBookStore.getState().book;
+                          // debugger
+                          const listForCheck = getValueByPath(book, props.path);
+                          useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, props.path.at(-2) + '-событие-')]: structEventResult});
+                      }}>
+                <BsPlusCircle size="24"/>
+            </ButtonEx>
         </div>}
-        {isArt && <div className="flex flex-row gap-1">
-            <Tooltip text={"Количество параграфов"} direction={"right"} className={clsx(
+        {isEvent && <div className="flex flex-row gap-1">
+            <Tooltip text={"Количество букв"} direction={"right"} className={clsx(
                 'text-gray-500', CONTROL_BTN)}>
                 <InputNumberEditor
                     className={"text-center"}
-                    value={props.value.options.quantParagraphs}
+                    value={props.value.options.numberOfLetters}
                     doInput={(val: number) => {
                         if (isNaN(val)) val = 6;
-                        props.toWrite(val, [...(props.path), 'options', 'quantParagraphs']);
+                        props.toWrite(val, [...(props.path), 'options', 'numberOfLetters']);
                     }}
                 />
             </Tooltip>
-            <Tooltip text={"Количество символов"} direction={"right"}
-                     className={clsx(
-                         'text-gray-500', CONTROL_BTN)}>[{Math.round(props.value?.value?.length)}]
+            <Tooltip text={"Количество символов"} direction={"right"} className={clsx('text-gray-500', CONTROL_BTN)}>
+                [{Math.round(Object.values(props.value)?.[2]?.['value']?.length)}]
             </Tooltip>
         </div>}
         {isSceneHeader && <SceneHeader {...props}/>}
@@ -749,14 +761,18 @@ const GPTHeader = (props: CallbackParams) => {
             return value;
         });
 
-        source = deleteFields(source, ['Результат']);
+        source = deleteFields(source, ['Результат', 'Визуальный стиль изображений']);
 
-        const [obj, key] = getObjectByPath(source, props.path as string[]);
+        const [obj, key] = getObjectByPath(source, props.path as string[], (obj, key, indexPath) => {
+            debugger
+            console.log(obj, key, indexPath)
+
+        });
         obj[key] = target;
         if (isScene) obj[key].options.sceneName = props.path.at(-2); // для того что бы можно было подставить название текущей сцены
 
         const listPathSrc = {};
-        source = walkAndFilter(source, ({value, arrPath}) => {
+        source = walkAndFilter(source, ({value, parent, arrPath}) => {
             if (value?.hasOwnProperty('value') && !value.value && typeof value.value !== "object") {
 
                 const id = generateUID();
@@ -765,12 +781,13 @@ const GPTHeader = (props: CallbackParams) => {
                 value.target = '';
                 delete value.value;
 
-                if (value?.hasOwnProperty('options')) { // Подстановка значений
+                // Подстановка значений
+                if (value?.hasOwnProperty('options') || parent?.hasOwnProperty('options')) {
                     const strValue = JSON.stringify(value);
-                    const _strValue = template(strValue, null, {...value.options});
+                    let _strValue = template(strValue, null, {...value.options});
+                    _strValue = template(_strValue, null, {...parent.options});
                     value = JSON.parse(_strValue);
                 }
-
             }
             return value;
         });
@@ -883,8 +900,14 @@ const GPTHeader = (props: CallbackParams) => {
 export const clbHeader: Clb = (props: CallbackParams) => {
     const arrSize = [14, 14, 14];
 
+    let tags = props.value?.options?.tags;
     const options = props.value?.options;
     const isToggle = !options?.excludes?.includes('toggle') && Object.keys(props.value).filter(it => !SET_OPTIONS.includes(it)).length > 0;
+    const isHide = isEqualString(tags, 'hide');
+
+    if (isHide) {
+        return null;
+    }
 
     let isOptions = LIST_KEY_NAME[props.keyName];
 

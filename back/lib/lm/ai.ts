@@ -141,10 +141,10 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
                 break;
             case 1:
                 // model = "google/gemini-2.5-flash-lite";
-                model = "google/gemini-2.5-flash-lite-preview-09-2025";
                 break;
             case 2:
-                model = "anthropic/claude-haiku-4.5";
+                // model = "anthropic/claude-haiku-4.5";
+                model = "google/gemini-2.5-flash-lite-preview-09-2025";
                 break;
             case 3:
                 // model = "openai/gpt-5-chat";
@@ -206,7 +206,7 @@ export async function OpenAPI(system: string, user: string, progressID: string, 
                 schema: RESPONSE_SCHEMA,
                 strict: true // Гарантирует максимально строгое соблюдение схемы
             },
-            temperature: 0.8, // Повышаем для более творческого текста
+            // temperature: 0.8, // Повышаем для более творческого текста
 
         });
 

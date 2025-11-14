@@ -127,8 +127,9 @@ export const StoryEditor: React.FC = () => {
         const isWrap: boolean = Boolean(options?.width);
         const parentWidth = parent?.options?.width;
         const selfWidth: string = options?.selfWidth;
-        const isImgGen = isEqualString(options?.tags ?? '', 'image-gen')
-        const isImgScene = isEqualString(options?.tags ?? '', 'scene')
+        const isImgGen = isEqualString(options?.tags ?? '', 'image-gen');
+        const isImgScene = isEqualString(options?.tags ?? '', 'scene');
+        const isEvent = isEqualString(options?.tags ?? '', 'nowrap');
         const {isHydrated, images, frame, removeImages} = useImageStore.getState();
 
         const renderBox = (w?: string) =>
@@ -143,6 +144,11 @@ export const StoryEditor: React.FC = () => {
             );
 
         let Image = null;
+
+        if (isEvent) return <div>
+            {header}
+            {children}
+        </div>;
 
         if (isHydrated && (isImgGen || isImgScene)) {
             const _frames = Object.entries(frame?.[keyName] ?? {});
