@@ -3,7 +3,7 @@ import {minorCharacter, structCharacter} from "./structCharacters.ts";
 
 export const structPlot = {
     'Общие': {
-        options: {width: '33%'},
+        options: {width: '33.33%'},
         'Название': {
             options: {excludes: 'toggle', includes: 'value'},
             desc: 'Название произведения, которое передаёт его суть или создаёт настроение.',

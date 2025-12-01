@@ -138,8 +138,8 @@ export const structEventResult = {
             'Write in the style of modern literary prose with dialogue and turns of phrase that are natural to the Russian language.\n' +
             '\n' +
             'Output Format and Style Instructions:\n' +
-            'Content: Output only the generated literary text, without any introductory phrases, comments, or explanations.\n' +
-            'Length: The text must contain at least $numberOfLetters$ letters.\n' +
+            'Content: Output only the generated literary text, without any introductory phrases, comments, or explanations. Strictly exclude repetitions of actions and events already described earlier in this scene\n' +
+            'Length: The text must contain slightly more than $numberOfLetters$ letters.\n' +
             'Dialogue: Every new utterance in the dialogue must start on a new line.\n' +
             'Rhythm and Atmosphere: The text must possess a smooth, flowing rhythm and a strong, consistently maintained atmosphere (e.g., melancholy, tension, tranquility, etc.).',
         value: ''

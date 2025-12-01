@@ -36,7 +36,7 @@ document.addEventListener('paste', function (e) {
     // @ts-ignore
     var text = (e.clipboardData || window.clipboardData).getData('text');
     glob.clipboardText = text;
-    console.log('Clipboard text:' + text);
+    // console.log('Clipboard text:' + text);
 });
 
 //веб-сокет для обмена данными с сервером
