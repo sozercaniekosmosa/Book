@@ -63,6 +63,7 @@ export async function getImageOpenAPI(prompt: string, param: any, api_key: strin
         });
 
         const model = "google/gemini-2.5-flash-image"
+        // const model = "gemini-3-pro-image-preview"
         // const model = "google/gemini-2.5-flash-image-preview"
 
         let content: any = [
@@ -79,7 +80,10 @@ export async function getImageOpenAPI(prompt: string, param: any, api_key: strin
             }))]
 
 
-        let image_config: any = {aspect_ratio: param?.aspect_ratio ?? '1:1'};
+        let image_config: any = {
+            aspect_ratio: param?.aspect_ratio ?? '1:1',
+            image_size: param?.resolution ?? '1K'
+        };
 
         const response = await openai.chat.completions.create({
             model: model,

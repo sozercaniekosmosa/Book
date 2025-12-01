@@ -1,8 +1,8 @@
 // ~noinspection JSUnusedLocalSymbols
 // ~@ts-nocheck
-import {generateUID, getObjectByPath, getValueByPath, isEmpty, isEqualString, walkAndFilter} from "../../lib/utils.ts";
+import {getObjectByPath, getValueByPath, isEqualString, walkAndFilter} from "../../lib/utils.ts";
 import {useBookStore, useImageStore} from "./store/storeBook.ts";
-import React, {useCallback, useEffect, useRef, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {CallbackParams, Clb, DefaultIcon} from "./BookTreeEditor.tsx";
 import TextWrite from "../Auxiliary/TextWrite.tsx";
 import ButtonEx from "../Auxiliary/ButtonEx.tsx";
@@ -11,35 +11,13 @@ import {structPlotArc5, structPlotArc8, structPlotArcHero, structPlotArcTravelCa
 import {minorCharacter} from "./mapBook/structCharacters.ts";
 import {structEventResult, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
-import {eventBus} from "../../lib/events.ts";
 import {template} from "../../lib/strings.ts";
-import {addImage, mergeBase64Images, toGPT, toImageGenerate} from "./general.utils.ts";
-import {fnPromptTextHandling, promptImageCharacter, promptImageScene, promptWrite} from "./prompts.ts";
-import DropdownButton from "../Auxiliary/DropdownButton.tsx";
+import {addImage, mergeBase64Images, openBase64ImageInNewTab, toImageGenerate} from "./general.utils.ts";
+import {promptImageCharacter} from "./prompts.ts";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
-import {
-    BsArrowsCollapse,
-    BsArrowsFullscreen,
-    BsCheckAll,
-    BsCircleHalf,
-    BsCloudRain,
-    BsEmojiFrown,
-    BsEmojiSmile,
-    BsEraserFill,
-    BsFillPeopleFill,
-    BsGear,
-    BsGearFill,
-    BsImage,
-    BsLightning,
-    BsPlusCircle,
-    BsStack,
-    BsStars,
-    BsSun,
-    BsThreeDotsVertical,
-    BsX
-} from "react-icons/bs";
+import {BsEraserFill, BsFillPeopleFill, BsGear, BsGearFill, BsImage, BsPlusCircle, BsStack, BsX} from "react-icons/bs";
 import {RiImageAiFill} from "react-icons/ri";
 import Checkbox from "../Auxiliary/Checkbox.tsx";
 import {useShallow} from "zustand/react/shallow";
@@ -201,15 +179,12 @@ const Characters = (props: CallbackParams) => {
                                   const charDesc = characterDesc.toLocaleLowerCase();
                                   const character = JSON.parse(JSON.stringify(minorCharacter));
                                   character['Общее описание'].value = characterDesc;
+                                  const characters = useBookStore.getState().book['Персонажи'];
 
-                                  if (charDesc.includes('главный герой')) {
-                                      console.log('1)' + charDesc);
-                                      if (book['Персонажи']['Главный герой']['Общее описание'].value) return;
-                                      useBookStore.getState().mergeAtPath(['Персонажи', 'Главный герой', 'Общее описание'], {value: character})
-                                  } else if (charDesc.includes('антагонист')) {
-                                      console.log('2)' + charDesc);
-                                      if (book['Персонажи']['Антагонист']['Общее описание'].value) return;
-                                      useBookStore.getState().mergeAtPath(['Персонажи', 'Антагонист', 'Общее описание'], {value: character})
+                                  if (charDesc.includes('главный герой') && !characters['Главный герой']?.['Общее описание'].value) {
+                                      useBookStore.getState().mergeAtPath(['Персонажи', 'Главный герой', 'Общее описание'], {value: character['Общее описание'].value});
+                                  } else if (charDesc.includes('антагонист') && !characters['Антагонист']?.['Общее описание'].value) {
+                                      useBookStore.getState().mergeAtPath(['Персонажи', 'Антагонист', 'Общее описание'], {value: character['Общее описание'].value});
                                   } else {
 
                                       const isExist = arrExistCharacter.some(simpleName => {
@@ -239,7 +214,8 @@ const Characters = (props: CallbackParams) => {
             </ButtonEx>
         </>}
         {!isAllCharacters && !isMinorCharacters && <CharacterHeader {...props}/>}
-        {isImageGen && <ButtonEx className={clsx('w-[24px] h-[24px]', CSS_BTN)} onConfirm={async () => {
+        {isImageGen && <ButtonEx className={clsx('w-[24px] h-[24px]', CSS_BTN)} description="Генерация персонажа"
+                                 title="Генерация персонажа" onConfirm={async () => {
             let book = useBookStore.getState().book;
 
             console.log(props.keyName)
@@ -293,6 +269,7 @@ const ImagesPanel = (props: {
                         <ImageGallery
                             images={arrValue as string[][]}
                             onRenderImage={(src, index) => {
+                                debugger
                                 return (
                                     <div className="relative">
                                         <img id={keyName} src={src} alt={`custom-${index}`}
@@ -365,6 +342,8 @@ const SceneHeader = (props: CallbackParams) => {
                 className={clsx('w-[24px] h-[24px]', CSS_BTN)}
                 description="Создать изображение сцены"
                 onConfirm={async () => {
+
+                    debugger
                     let book = useBookStore.getState().book;
 
                     let images = useImageStore.getState().images;
@@ -375,22 +354,24 @@ const SceneHeader = (props: CallbackParams) => {
                     let arrDescCharacter: string[] = [];
                     arr.forEach((halfPath) => {
                         const [name, index] = halfPath.split('.');
+                        const imgBase64 = images[name][index];
+                        if (!imgBase64) return;
                         if (name.includes('Персонаж')) {
-                            arrImgCharacter.push(images[name][index]);
+                            arrImgCharacter.push(imgBase64);
                             const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя полное'].value;
                             arrDescCharacter.push(desc)
                         }
                         if (name.includes('Главный')) {
-                            arrImgCharacter.push(images[name][index]);
+                            arrImgCharacter.push(imgBase64);
                             const desc = book['Персонажи']['Главный герой']['Имя полное'].value;
                             arrDescCharacter.push(desc)
                         }
                         if (name.includes('Антагонист')) {
-                            arrImgCharacter.push(images[name][index]);
+                            arrImgCharacter.push(imgBase64);
                             const desc = book['Персонажи']['Антагонист']['Имя полное'].value;
                             arrDescCharacter.push(desc)
                         }
-                        if (name.includes('Сцена')) imgScene = images[name][index];
+                        if (name.includes('Сцена')) imgScene = imgBase64;
                     })
 
                     const img = await mergeBase64Images({
@@ -413,13 +394,16 @@ const SceneHeader = (props: CallbackParams) => {
                     const details = scene['Детали окружения'].value;
 
                     const prompt = template(getValueByPath(book, [...props.path, 'sceneImagePrompt']), null, {
-                        style,
-                        characters: arrDescCharacter,
-                        desc: desc + '\n' + details
+                        // style,
+                        // characters: arrDescCharacter,
+                        // desc: desc + '\n' + details
                     });
 
-                    const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
-                    await useImageStore.getState().addImages(props.keyName + '', res);
+                    console.log(prompt);
+                    openBase64ImageInNewTab(imgHandled, 'image/webp')
+
+                    // const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
+                    // await useImageStore.getState().addImages(props.keyName + '', res);
                 }}><RiImageAiFill/></ButtonEx>
         </div>
     </>
