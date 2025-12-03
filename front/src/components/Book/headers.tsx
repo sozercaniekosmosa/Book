@@ -13,7 +13,7 @@ import {structEventResult, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
 import {template} from "../../lib/strings.ts";
 import {addImage, mergeBase64Images, openBase64ImageInNewTab, toImageGenerate} from "./general.utils.ts";
-import {promptImageCharacter} from "./prompts.ts";
+import {promptImageCharacter, promptImageScene} from "./prompts.ts";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
@@ -269,7 +269,6 @@ const ImagesPanel = (props: {
                         <ImageGallery
                             images={arrValue as string[][]}
                             onRenderImage={(src, index) => {
-                                debugger
                                 return (
                                     <div className="relative">
                                         <img id={keyName} src={src} alt={`custom-${index}`}
@@ -343,7 +342,6 @@ const SceneHeader = (props: CallbackParams) => {
                 description="Создать изображение сцены"
                 onConfirm={async () => {
 
-                    debugger
                     let book = useBookStore.getState().book;
 
                     let images = useImageStore.getState().images;
@@ -358,17 +356,17 @@ const SceneHeader = (props: CallbackParams) => {
                         if (!imgBase64) return;
                         if (name.includes('Персонаж')) {
                             arrImgCharacter.push(imgBase64);
-                            const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя полное'].value;
+                            const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя полное'].value.split('-')[0].trim();
                             arrDescCharacter.push(desc)
                         }
                         if (name.includes('Главный')) {
                             arrImgCharacter.push(imgBase64);
-                            const desc = book['Персонажи']['Главный герой']['Имя полное'].value;
+                            const desc = book['Персонажи']['Главный герой']['Имя полное'].value.split('-')[0].trim();
                             arrDescCharacter.push(desc)
                         }
                         if (name.includes('Антагонист')) {
                             arrImgCharacter.push(imgBase64);
-                            const desc = book['Персонажи']['Антагонист']['Имя полное'].value;
+                            const desc = book['Персонажи']['Антагонист']['Имя полное'].value.split('-')[0].trim();
                             arrDescCharacter.push(desc)
                         }
                         if (name.includes('Сцена')) imgScene = imgBase64;
@@ -387,16 +385,16 @@ const SceneHeader = (props: CallbackParams) => {
 
                     // openBase64ImageInNewTab(imgHandled, 'image/webp')
 
-                    let style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+                    const _scene = getValueByPath(book, props.path);
+                    const imageDesc = arrDescCharacter.join(', ');
+                    const style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
+                    const scene = _scene['Описание сцены'].value;
+                    const characters = _scene['Персонажи'].value;
+                    const details = _scene['Детали окружения'].value;
+                    const events = _scene['События'].value;
 
-                    const scene = getValueByPath(book, props.path);
-                    const desc = scene['Описание сцены'].value;
-                    const details = scene['Детали окружения'].value;
-
-                    const prompt = template(getValueByPath(book, [...props.path, 'sceneImagePrompt']), null, {
-                        // style,
-                        // characters: arrDescCharacter,
-                        // desc: desc + '\n' + details
+                    const prompt = template(promptImageScene, null, {
+                        imageDesc, scene, style, characters, details, events
                     });
 
                     console.log(prompt);

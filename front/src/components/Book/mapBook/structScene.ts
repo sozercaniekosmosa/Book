@@ -1,7 +1,6 @@
 export const structScene = {
     options: {tags: 'scene image-gen deletable sceneImagePrompt', excludes: 'desc Название кратко sceneImagePrompt'},
     desc: 'Сцена - место, где происходят события или изменения, значимые для сюжета и раскрытия персонажей',
-    sceneImagePrompt: '',
     'Краткое описание': {
         options: {excludes: 'toggle', includes: 'value'},
         desc: 'Подробно описать сцену и действия в ней',
