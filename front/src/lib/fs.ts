@@ -71,3 +71,22 @@ export default async function saveFile(arrayBuffer: ArrayBuffer, fileName: strin
         }
     });
 }
+
+export const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === "string") {
+            resolve(result);
+        } else {
+            reject(new Error("Не удалось прочитать файл как base64"));
+        }
+    };
+
+    reader.onerror = () => {
+        reject(reader.error);
+    };
+
+    reader.readAsDataURL(file); // конвертирует в base64
+});

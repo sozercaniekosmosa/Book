@@ -179,7 +179,7 @@ export interface StoreImage {
     revision: number;
     forceUpdate: () => void; // Метод для принудительного обновления
 
-    images: Record<string, string[]>;
+    images: Record<string, any>;
     addImages: (id: string, imageBase64: string) => Promise<string>;
     removeImages: (id: string, index: string) => void;
 
@@ -215,7 +215,6 @@ export const useImageStore = create<StoreImage>()(
                     // state.images[id].splice(index, 1);
                     delete state.images[id][idImage];
                 }),
-
                 setFrame: (id, val) => {
                     set(state => {
                         let frame = state?.frame[id] ?? [];

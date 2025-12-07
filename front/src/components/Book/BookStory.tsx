@@ -14,10 +14,15 @@ import {BsLightningCharge, BsX} from "react-icons/bs";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import {Tab, Tabs} from "../Auxiliary/Tabs.tsx";
 import {eventBus} from "../../lib/events.ts";
-import {RiFlowerFill} from "react-icons/ri";
+import {RiFlowerFill, RiImageEditFill} from "react-icons/ri";
 import saveFile from "../../lib/fs.ts";
 import JSZip from "jszip";
 import {FaRegFolder} from "react-icons/fa";
+import Dialog from "../Auxiliary/Dialog.tsx";
+import {ImageCropper} from "./ImageEditor.tsx";
+import {openBase64ImageInNewTab} from "./general.utils.ts";
+import {MdModeEditOutline} from "react-icons/md";
+import {TbPhotoEdit} from "react-icons/tb";
 
 export const LIST_KEY_NAME = {
     desc: 'Описание',
@@ -79,6 +84,8 @@ const TextEditor = ({toWrite, value, parent, className = ''}) => {
 export const StoryEditor: React.FC = () => {
 
     const [isEvents, setIsEvents] = useState(false);
+    const [editingImg, setEditingImg] = useState(null);
+    const [showEditor, setShowEditor] = useState(false);
     const refEventContent = useRef(null);
     const refStoryEditor = useRef();
 
@@ -160,7 +167,7 @@ export const StoryEditor: React.FC = () => {
             if (isImgScene) {
                 const extras = _frames.flatMap(([_, v]) => {
                     const [name, idx] = String(v).split('.');
-                    return ['Персонаж', 'Главный', 'Антагонист', 'Кадр'].some(n => name.includes(n))
+                    return ['Персонаж', 'Главный', 'Антагонист', 'Кадр', 'Объект'].some(n => name.includes(n))
                         ? images[name]?.[idx]
                             ? [images[name][idx]]
                             : []
@@ -181,11 +188,21 @@ export const StoryEditor: React.FC = () => {
                                          src={src} alt={`img-${i}`}
                                     />
                                     {_images.some(([, v]) => v === src) && (
-                                        <ButtonEx
-                                            className="!absolute top-0 right-0 w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
-                                            description="Удалить"
-                                            onConfirm={() => removeImages(String(keyName), allKeys[i])}
-                                        ><BsX size="24"/></ButtonEx>
+                                        <>
+                                            <ButtonEx
+                                                className="!absolute top-0 right-0 w-[24px] h-[24px] hover:!bg-red-700 hover:text-white transition"
+                                                description="Удалить"
+                                                onConfirm={() => removeImages(String(keyName), allKeys[i])}
+                                            ><BsX size="24"/></ButtonEx>
+
+                                            <ButtonEx
+                                                className="!absolute top-0 left-0 w-[24px] h-[24px] hover:!bg-lime-600 hover:text-white transition"
+                                                onClick={() => {
+                                                    setEditingImg({imgB64: src, keyName: keyName});
+                                                    setShowEditor(true);
+                                                }}
+                                            ><TbPhotoEdit size="24"/></ButtonEx>
+                                        </>
                                     )}
                                 </div>
                             )}
@@ -315,5 +332,18 @@ export const StoryEditor: React.FC = () => {
             <Tab eventKey="events" title="События" className="">
             </Tab>
         </Tabs>
+
+        <Modal show={showEditor} onHide={() => setShowEditor(false)} autoSize={false}>
+            {/*<Modal.Header>*/}
+            {/*    <Modal.Title className="text-sm">{props.caption}</Modal.Title>*/}
+            {/*</Modal.Header>*/}
+            <div className={"w-[80vw]"}>
+                <ImageCropper image={editingImg?.imgB64 ?? null} onChange={(base64Image) => {
+                    useImageStore.getState().addImages(editingImg.keyName, base64Image);
+                    setShowEditor(false);
+                }}/>
+            </div>
+        </Modal>
+
     </>);
 };

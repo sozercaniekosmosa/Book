@@ -10,6 +10,7 @@ interface IButtonExProps extends PropsWithChildren {
     className?: string;
     onAction?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void;
     onClick?: (e?: React.MouseEvent<HTMLElement>) => void;
+    onClickShift?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void;
     onConfirm?: (e?: React.MouseEvent<HTMLElement>) => Promise<number | any> | number | void;
     onUpload?: (file?: File) => Promise<number | any> | number | void;
     dialogContent?: React.FC | React.ReactElement;
@@ -29,6 +30,7 @@ const ButtonEx: FC<IButtonExProps> = ({
                                           className = '',
                                           onAction = null,
                                           onClick = null,
+                                          onClickShift = null,
                                           onUpload = null,
                                           disabled = false,
                                           hidden = false,
@@ -57,8 +59,17 @@ const ButtonEx: FC<IButtonExProps> = ({
             e.stopPropagation();
         }
         onClick && onClick(e);
-        if (onConfirm) {
+        if (e.shiftKey) { //если с shift то без подтверждения и onClickShift
+            if (onClickShift) {
+                let s: React.SetStateAction<number | void>;
+                set_state(1)
+                s = await onClickShift(showAndDataEvent);
+                setTimeout(() => set_state(s ?? 0), 500);
+            }
+        } else if (onConfirm) {
             let s: React.SetStateAction<number | void>;
+            if (e.shiftKey) return;
+
             if (e.ctrlKey) { //если с ctrl то без подтверждения
                 set_state(1)
                 s = await onConfirm(showAndDataEvent);
@@ -68,7 +79,9 @@ const ButtonEx: FC<IButtonExProps> = ({
             }
             return e;
         }
+
         if (onAction) {
+            if (e.shiftKey) return;
             set_state(1)
             const s = await onAction(e); //TODO: тут можно сделать try..catch на отлов ошибок или Promise callback
             setTimeout(() => set_state(s), 500);

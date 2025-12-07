@@ -11,18 +11,35 @@ import {structPlotArc5, structPlotArc8, structPlotArcHero, structPlotArcTravelCa
 import {minorCharacter} from "./mapBook/structCharacters.ts";
 import {structEventResult, structScene} from "./mapBook/structScene.ts";
 import {Tooltip} from "../Auxiliary/Tooltip.tsx";
-import {template} from "../../lib/strings.ts";
-import {addImage, mergeBase64Images, openBase64ImageInNewTab, toImageGenerate} from "./general.utils.ts";
-import {promptImageCharacter, promptImageScene} from "./prompts.ts";
 import {LIST_KEY_NAME} from "./BookStory.tsx";
 import Modal from "../Auxiliary/ModalWindow.tsx";
 import ImageGallery from "../Auxiliary/GalleryImage.tsx";
-import {BsEraserFill, BsFillPeopleFill, BsGear, BsGearFill, BsImage, BsPlusCircle, BsStack, BsX} from "react-icons/bs";
+import {
+    BsBox,
+    BsEraserFill,
+    BsFillPeopleFill,
+    BsGear,
+    BsGearFill,
+    BsImage,
+    BsPlusCircle,
+    BsStack,
+    BsX
+} from "react-icons/bs";
 import {RiImageAiFill} from "react-icons/ri";
 import Checkbox from "../Auxiliary/Checkbox.tsx";
 import {useShallow} from "zustand/react/shallow";
 
 import {GPTHeader} from "./GPTHeader.tsx";
+import {structObject} from "./mapBook/structObject.ts";
+import {MdUpload} from "react-icons/md";
+import {
+    generateImage,
+    getPromptImageCharacter,
+    getPromptImageObject,
+    getPromptImageScene,
+    LoadImage, pasteImageFromClipboard
+} from "./helpersImages.ts";
+import {convertBase64ImageFormat, openBase64ImageInNewTab} from "./general.utils.ts";
 
 // @ts-ignore
 window.q = useImageStore.getState;
@@ -135,6 +152,34 @@ const CharacterHeader = (props: CallbackParams) => {
     </>;
 };
 
+const ObjectHeader = (props: CallbackParams) => {
+
+    const objectName = (props.value)?.['Название']?.value;
+    const objectDesc = (props.value)?.['Название']?.desc;
+
+    const [_val, set_val] = useState<any>(objectName);
+
+
+    return <>
+        <TextWrite
+            className="text-black !w-auto"
+            fitToTextSize={true}
+            value={_val}
+
+            onChange={(e) => set_val(e.target.value)}
+            onBlur={() => useBookStore.getState().setAtPath(props.path.concat(['Название', 'value']), _val)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === "Enter" && e.ctrlKey) {
+                    useBookStore.getState().setAtPath(props.path.concat(['Название', 'value']), _val);
+                    (e.target as HTMLInputElement).blur();
+                }
+            }}
+
+            placeholder={objectDesc}
+        />
+    </>;
+};
+
 const General = (props: CallbackParams) => {
     if ((props.path)[0] != 'Общие') return null;
 
@@ -143,6 +188,7 @@ const General = (props: CallbackParams) => {
 
     return <div className="text-nowrap">{name}</div>;
 };
+
 const Characters = (props: CallbackParams) => {
 
     if ((props.path)[0] != 'Персонажи') return null;
@@ -214,29 +260,108 @@ const Characters = (props: CallbackParams) => {
             </ButtonEx>
         </>}
         {!isAllCharacters && !isMinorCharacters && <CharacterHeader {...props}/>}
-        {isImageGen && <ButtonEx className={clsx('w-[24px] h-[24px]', CSS_BTN)} description="Генерация персонажа"
-                                 title="Генерация персонажа" onConfirm={async () => {
-            let book = useBookStore.getState().book;
+        {isImageGen && <>
+            <ButtonEx className={clsx('w-[24px] h-[24px]', CSS_BTN)} description="Генерация персонажа"
+                      title="Генерация персонажа"
+                      onConfirm={async () => {
+                          const prompt = await getPromptImageCharacter(props);
+                          await generateImage({prompt, props})
+                      }}
+                      onClickShift={async () => {
+                          const prompt = await getPromptImageCharacter(props);
+                          await navigator.clipboard.writeText(prompt);
+                      }}><BsImage size="24"/></ButtonEx>
+            <ButtonEx
+                className={clsx('w-[24px] h-[24px]', CSS_BTN)} title="Загрузить изображение" typeFiles="image/*"
+                onUpload={(file: File) => LoadImage(file, props)}>
+                <MdUpload size="24"/>
+            </ButtonEx>
 
-            console.log(props.keyName)
-
-            const arrPath = [
-                [...props.path, 'Тело/физические характеристики'],
-                [...props.path, 'Стиль и визуальные особенности']
-            ]
-
-            const arr = extractCommonValues(arrPath as string[][]);
-
-            let styleGeneral = book?.['Общие']?.['Визуальный стиль изображений']?.value;
-            let styleCharacter = book?.['Персонажи']?.['Визуальный стиль персонажей']?.value;
-
-            const prompt = template(promptImageCharacter, null, {styleGeneral, styleCharacter, desc: arr.join('\n')});
-
-            const imgBase64 = await toImageGenerate({prompt, param: {aspect_ratio: '3:4'}});
-
-            await useImageStore.getState().addImages(props.keyName + '', imgBase64)
-        }}><BsImage size="24"/></ButtonEx>}
+        </>}
     </>;
+};
+const Objects = (props: CallbackParams) => {
+
+    if ((props.path)[0] != 'Все объекты') return null;
+
+    let tags = props.value?.options?.tags;
+    const isAllObjects = isEqualString(tags, 'all-objects');
+    const isObjects = isEqualString(tags, 'objects');
+    const isObject = isEqualString(tags, 'object');
+    const isImageGen = isEqualString(tags, 'image-gen');
+
+    let isOptions = LIST_KEY_NAME[props.keyName];
+    let name: string = isOptions ?? props.keyName;
+
+    if (!(isObject || isAllObjects || isObjects || isObject))
+        return <div className="text-nowrap">{name}</div>;
+
+    return <div className="flex flex-row">
+        {!isObject && <div className="text-nowrap">{name} {isObject && '—'} </div>}
+        {isAllObjects && <div className="flex-row gap-1">
+            <ButtonEx className={clsx("w-[24px] h-[24px] text-[11px]", CSS_BTN)} description="Создать объекты"
+                      title="Создать объекты"
+                      onConfirm={() => {
+                          let book = useBookStore.getState().book;
+                          let arr: string[] = props.value.value.split('\n');
+                          // debugger
+                          const arrExistObject =
+                              Object.entries(book['Все объекты']['Объекты'])
+                                  .filter(([key, _]) => key.toLocaleLowerCase().startsWith('объе'))
+                                  .map(([_, it]) => it["Название"].value)
+
+                          if (Array.isArray(arr)) {
+                              arr.forEach(objectDesc => {
+                                  const objDesc = objectDesc.toLocaleLowerCase();
+                                  const object = JSON.parse(JSON.stringify(structObject));
+                                  object['Общее описание'].value = objectDesc;
+
+                                  const isExist = arrExistObject.some(simpleName => {
+                                      const arrNameIt = simpleName.toLocaleString().replaceAll(/\((.*?)\)/g, '$1').split(/[,-]/g).map((it: string) => it.toLocaleLowerCase().trim());
+                                      return arrNameIt.some((name: string) => {
+                                          return objDesc.substring(0, objDesc.search(/\s.\s/)).includes(name);
+                                      })
+                                  })
+                                  if (isExist) return;
+                                  const listForCheck = useBookStore.getState().book['Все объекты']['Объекты'];
+                                  useBookStore.getState().mergeAtPath(['Все объекты', 'Объекты'], {[getFreeIndex(listForCheck, 'Объект-')]: object})
+
+                              })
+                          }
+                      }}>
+                <BsStack size={14}/>
+            </ButtonEx>
+        </div>}
+        {/*Объекты кнопка [+]*/ isObjects && <>
+            <ButtonEx className={clsx("w-[24px] h-[24px]", CSS_BTN)}
+                      onClick={() => {
+                          let book = useBookStore.getState().book;
+                          const listForCheck = book['Все объекты']['Объекты'];
+                          useBookStore.getState().mergeAtPath(props.path, {[getFreeIndex(listForCheck, 'Объект-')]: structObject});
+                      }}>
+                <BsPlusCircle size="24"/>
+            </ButtonEx>
+        </>}
+        {!isAllObjects && !isObjects && <ObjectHeader {...props}/>}
+        {isImageGen && <>
+            <ButtonEx className={clsx('w-[24px] h-[24px]', CSS_BTN)}
+                      description="Генерация объекта/предмета"
+                      title="Генерация объекта/предмета"
+                      onConfirm={async () => {
+                          const prompt = await getPromptImageObject(props);
+                          await generateImage({prompt, props})
+                      }}
+                      onClickShift={async () => {
+                          const prompt = await getPromptImageObject(props);
+                          await navigator.clipboard.writeText(prompt);
+                      }}><BsImage size="24"/></ButtonEx>
+            <ButtonEx
+                className={clsx('w-[24px] h-[24px]', CSS_BTN)} title="Загрузить изображение" typeFiles="image/*"
+                onUpload={(file: File) => LoadImage(file, props)}>
+                <MdUpload size="24"/>
+            </ButtonEx>
+        </>}
+    </div>;
 };
 
 const ImagesPanel = (props: {
@@ -302,6 +427,7 @@ const SceneHeader = (props: CallbackParams) => {
     const {path, value} = props;
 
     const [openModalSelectCharacter, setOpenModalSelectCharacter] = useState(false);
+    const [openModalSelectObject, setOpenModalSelectObject] = useState(false);
     const sceneName = value?.['Название кратко']?.value;
     const sceneDesc = value?.['Название кратко']?.desc;
 
@@ -330,79 +456,45 @@ const SceneHeader = (props: CallbackParams) => {
                 <sup>+</sup>
             </ButtonEx>
 
+            <ButtonEx className={clsx("h-[24px]", CSS_BTN)} onClick={() => setOpenModalSelectObject(true)}>
+                <BsBox size={14}/>
+                <sup>+</sup>
+            </ButtonEx>
+
             {openModalSelectCharacter &&
                 <ImagesPanel
                     idFrame={props.path.at(-1) as string}
                     show={openModalSelectCharacter} onHide={() => setOpenModalSelectCharacter(false)}
                     arrImgList={arrImgList}
-                    filter={([key, _]) => key.includes('Персонаж') || key.includes('Главный') || key.includes('Антагонист')}
+                    filter={([key, _]) => {
+                        let _key = key.toLocaleLowerCase();
+                        return _key.includes('персонаж') || _key.includes('главный') || _key.includes('антагонист');
+                    }}
                     caption="Выбор песонажей для сцены"/>}
+            {openModalSelectObject &&
+                <ImagesPanel
+                    idFrame={props.path.at(-1) as string}
+                    show={openModalSelectObject} onHide={() => setOpenModalSelectObject(false)}
+                    arrImgList={arrImgList}
+                    filter={([key, _]) => key.toLocaleLowerCase().includes('объект')}
+                    caption="Выбор объектов/пердметов для сцены"/>}
             <ButtonEx
                 className={clsx('w-[24px] h-[24px]', CSS_BTN)}
                 description="Создать изображение сцены"
                 onConfirm={async () => {
-
-                    let book = useBookStore.getState().book;
-
-                    let images = useImageStore.getState().images;
-                    const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
-
-                    let imgScene: string = '';
-                    let arrImgCharacter: string[] = [];
-                    let arrDescCharacter: string[] = [];
-                    arr.forEach((halfPath) => {
-                        const [name, index] = halfPath.split('.');
-                        const imgBase64 = images[name][index];
-                        if (!imgBase64) return;
-                        if (name.includes('Персонаж')) {
-                            arrImgCharacter.push(imgBase64);
-                            const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя полное'].value.split('-')[0].trim();
-                            arrDescCharacter.push(desc)
-                        }
-                        if (name.includes('Главный')) {
-                            arrImgCharacter.push(imgBase64);
-                            const desc = book['Персонажи']['Главный герой']['Имя полное'].value.split('-')[0].trim();
-                            arrDescCharacter.push(desc)
-                        }
-                        if (name.includes('Антагонист')) {
-                            arrImgCharacter.push(imgBase64);
-                            const desc = book['Персонажи']['Антагонист']['Имя полное'].value.split('-')[0].trim();
-                            arrDescCharacter.push(desc)
-                        }
-                        if (name.includes('Сцена')) imgScene = imgBase64;
-                    })
-
-                    const img = await mergeBase64Images({
-                        images: arrImgCharacter,
-                        gap: 10,
-                        backgroundColor: 'black',
-                        outputFormat: 'image/webp',
-                        jpegQuality: 1,
-                        scaleFactor: 0.5
-                    });
-
-                    const imgHandled = await addImage(img, 'image/webp', 100);
-
-                    // openBase64ImageInNewTab(imgHandled, 'image/webp')
-
-                    const _scene = getValueByPath(book, props.path);
-                    const imageDesc = arrDescCharacter.join(', ');
-                    const style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
-                    const scene = _scene['Описание сцены'].value;
-                    const characters = _scene['Персонажи'].value;
-                    const details = _scene['Детали окружения'].value;
-                    const events = _scene['События'].value;
-
-                    const prompt = template(promptImageScene, null, {
-                        imageDesc, scene, style, characters, details, events
-                    });
-
-                    console.log(prompt);
-                    openBase64ImageInNewTab(imgHandled, 'image/webp')
-
-                    // const res = await toImageGenerate({prompt, param: {aspect_ratio: '1:1', arrImage: [imgHandled]}});
-                    // await useImageStore.getState().addImages(props.keyName + '', res);
+                    const {prompt, imgBase64} = await getPromptImageScene(props);
+                    await generateImage({prompt, imgBase64, props})
+                }}
+                onClickShift={async () => {
+                    const {prompt, imgBase64} = await getPromptImageScene(props);
+                    await navigator.clipboard.writeText(prompt);
+                    openBase64ImageInNewTab(imgBase64);
                 }}><RiImageAiFill/></ButtonEx>
+            <ButtonEx
+                className={clsx('w-[24px] h-[24px]', CSS_BTN)} title="Загрузить изображение" typeFiles="image/*"
+                onUpload={(file: File) => LoadImage(file, props)}>
+                <MdUpload size="24"/>
+            </ButtonEx>
         </div>
     </>
 }
@@ -572,13 +664,12 @@ export const clbHeader: Clb = (props: CallbackParams) => {
     let isOptions = LIST_KEY_NAME[props.keyName];
 
     return <div
+        tabIndex={-1}
         className={clsx('flex items-center gap-0.5 transition-all duration-700 hover:shadow-[inset_0_-1px_1px_rgba(0,0,0,0.05)]')}
         style={{fontSize: arrSize?.[props.deep] ?? 14 + 'px'}}
-        onMouseDown={(e) => {
-            if (e.button != 1) return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (e.button == 1) (async () => await navigator.clipboard.writeText(pathHandler(props.path)))();
+        onPaste={(e) => {
+            const items = e.clipboardData.items;
+            pasteImageFromClipboard(items, props);
         }}
     >
         {isToggle &&
@@ -588,6 +679,7 @@ export const clbHeader: Clb = (props: CallbackParams) => {
         }
         <General {...props}/>
         <Characters {...props}/>
+        <Objects {...props}/>
         <PlotArc {...props}/>
 
         {!isOptions && <GPTHeader {...props}/>}

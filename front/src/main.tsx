@@ -6,7 +6,6 @@ import React from "react";
 import {ERR, OK} from "./components/PopupMessage/PopupMessage.tsx";
 import {webSocket} from "./lib/services.ts";
 import {eventBus} from "./lib/events.ts";
-import "bootstrap-icons/font/bootstrap-icons.css";
 
 // document.documentElement.classList.add('dark');
 
