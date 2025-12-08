@@ -105,12 +105,11 @@ export const getPromptImageScene = async (props: CallbackParams) => {
     const imageDesc = arrDescCharacter.join(', ');
     const style = book?.['Общие']?.['Визуальный стиль изображений']?.value;
     const scene = _scene['Описание сцены'].value;
-    const characters = _scene['Персонажи'].value;
-    const details = _scene['Детали окружения'].value;
+    const characters = _scene['Сущности'].value;
     const events = _scene['События'].value;
 
     const prompt = template(promptImageScene, null, {
-        imageDesc, scene, style, characters, details, events
+        imageDesc, scene, style, characters, events
     });
 
     return {prompt, imgBase64};

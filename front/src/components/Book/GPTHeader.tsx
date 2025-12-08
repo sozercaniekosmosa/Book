@@ -209,9 +209,8 @@ const GPTHeader = (props: CallbackParams) => {
             const strImgPrompt = getValueByPath(book, [...props.path, 'sceneImagePrompt']) ?? '';
             const strStyle = book?.['Общие']?.['Визуальный стиль изображений']?.value ?? '';
             const strDesc = getValueByPath(book, [...props.path, 'Описание сцены', 'value']) ?? '';
-            const strDetails = getValueByPath(book, [...props.path, 'Детали окружения', 'value']) ?? '';
 
-            if (!strImgPrompt && strStyle && strDesc && strDetails) {
+            if (!strImgPrompt && strStyle && strDesc) {
 
                 // Собираем описания персонажей
                 const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
@@ -237,8 +236,7 @@ const GPTHeader = (props: CallbackParams) => {
 
                 const artDescImg = book?.['Общие']?.['Визуальный стиль изображений']?.value + '\n' +
                     getValueByPath(book, [...props.path, 'Описание сцены', 'value']) + '\n' +
-                    getValueByPath(book, [...props.path, 'Персонажи', 'value']) + '\n' +
-                    getValueByPath(book, [...props.path, 'Детали окружения', 'value']);
+                    getValueByPath(book, [...props.path, 'Персонажи', 'value']) + '\n';
 
                 const prompt = template(promptImageScene, null, {arrDescCharacter, artDescImg});
                 let resultStruct = await toGPT(prompt);
