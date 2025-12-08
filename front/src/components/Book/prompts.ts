@@ -218,11 +218,11 @@ export const promptImageScene =
     'Описание сцены:\n' +
     '$scene$\n' +
     '\n' +
-    'Описание персонажей:\n' +
+    'Описание персонажей/предметов:\n' +
     '$characters$\n' +
     '\n' +
-    'Описание деталей сцены:\n' +
-    '$details$\n' +
+    // 'Описание деталей сцены:\n' +
+    // '$details$\n' +
     '\n' +
     'Требования:\n' +
     '- Do not change and preserve the appearance of the objects from the input image.\n' +
