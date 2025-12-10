@@ -197,53 +197,13 @@ const GPTHeader = (props: CallbackParams) => {
     const generateTextGPT = useCallback(async (llm: number) => {
 
         let tags = props.value?.options?.tags;
-        const isImgPattern = isEqualString(tags, 'sceneImagePrompt');
         const isScene = isEqualString(props.parent?.options?.tags, 'scene');
+        const isObject = isEqualString(tags, 'object');
         const isArt = isEqualString(tags, 'art');
         const isEvent = isEqualString(tags, 'event');
 
         let book = useBookStore.getState().book;
 
-        if (isImgPattern) {
-
-            const strImgPrompt = getValueByPath(book, [...props.path, 'sceneImagePrompt']) ?? '';
-            const strStyle = book?.['Общие']?.['Визуальный стиль изображений']?.value ?? '';
-            const strDesc = getValueByPath(book, [...props.path, 'Описание сцены', 'value']) ?? '';
-
-            if (!strImgPrompt && strStyle && strDesc) {
-
-                // Собираем описания персонажей
-                const arr = useImageStore.getState().frame?.[props.keyName] ?? [];
-                let images = useImageStore.getState().images;
-                let arrDescCharacter: string[] = [];
-                arr.forEach((halfPath) => {
-                    const [name, index] = halfPath.split('.');
-                    const imgBase64 = images[name][index];
-                    if (!imgBase64) return;
-                    if (name.includes('Персонаж')) {
-                        const desc = book['Персонажи']['Второстепенные персонажи'][name]['Имя полное'].value;
-                        arrDescCharacter.push(desc)
-                    }
-                    if (name.includes('Главный')) {
-                        const desc = book['Персонажи']['Главный герой']['Имя полное'].value;
-                        arrDescCharacter.push(desc)
-                    }
-                    if (name.includes('Антагонист')) {
-                        const desc = book['Персонажи']['Антагонист']['Имя полное'].value;
-                        arrDescCharacter.push(desc)
-                    }
-                })
-
-                const artDescImg = book?.['Общие']?.['Визуальный стиль изображений']?.value + '\n' +
-                    getValueByPath(book, [...props.path, 'Описание сцены', 'value']) + '\n' +
-                    getValueByPath(book, [...props.path, 'Персонажи', 'value']) + '\n';
-
-                const prompt = template(promptImageScene, null, {arrDescCharacter, artDescImg});
-                let resultStruct = await toGPT(prompt);
-
-                props.toWrite(resultStruct, [...props.path, 'sceneImagePrompt']);
-            }
-        }
         let source = JSON.parse(JSON.stringify(book));
         source = prepareStructureFirst(source);
 
@@ -260,7 +220,7 @@ const GPTHeader = (props: CallbackParams) => {
             return value;
         });
 
-        source = deleteFields(source, ['Результат', 'Визуальный стиль изображений'],);
+        source = deleteFields(source, ['Результат', 'Визуальный стиль изображений', isObject ? '' : 'Все объекты'],);
         source = deleteFields(source, ['Событие', 'Литературное описаное событие'], props.path.slice(0, -1).join('.'));
 
         const [obj, key] = getObjectByPath(source, props.path as string[], (obj, key, indexPath) => {

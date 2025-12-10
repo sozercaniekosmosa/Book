@@ -45,7 +45,7 @@ import {convertBase64ImageFormat, openBase64ImageInNewTab} from "./general.utils
 window.q = useImageStore.getState;
 
 export const CSS_BTN = 'opacity-30 hover:opacity-100';
-const SET_OPTIONS = 'options desc example requirements variants sceneImagePrompt';
+const SET_OPTIONS = 'options desc example requirements variants';
 
 const TextInputEditor = ({doInput, value, placeholder, className = ''}) => {
     const [curVal, setCurVal] = useState(value);
@@ -699,7 +699,7 @@ export const clbHeader: Clb = (props: CallbackParams) => {
                 onConfirm={() => useBookStore.getState().removeAtPath(props.path)}>
                 <BsX size="16"/>
             </ButtonEx>}
-            {(props.value?.desc || props.value?.example || props.value?.requirements || props.value?.sceneImagePrompt) &&
+            {(props.value?.desc || props.value?.example || props.value?.requirements) &&
                 <ButtonEx className={clsx('w-[24px] h-[24px]', CSS_BTN,)} onClick={() => {
                     const _path = [...(props.path), 'options', 'forcedIncludes'];
                     useBookStore.getState().setAtPath(_path, props.value?.options?.forcedIncludes ? '' : SET_OPTIONS);

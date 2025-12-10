@@ -28,8 +28,7 @@ export const LIST_KEY_NAME = {
     desc: 'Описание',
     example: 'Пример',
     requirements: 'Требования',
-    variants: 'Варианты',
-    sceneImagePrompt: 'Промпт для сцены'
+    variants: 'Варианты'
 };
 
 // forced update browse
