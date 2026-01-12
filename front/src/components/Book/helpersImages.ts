@@ -20,7 +20,7 @@ export const LoadImage = async (file: File, props: CallbackParams) => {
 }
 export const generateImage = async (
     {prompt, imgBase64 = null, props}: { prompt: string, imgBase64?: string, props: CallbackParams }) => {
-    let param = imgBase64 ? {aspect_ratio: '1:1', arrImage: [imgBase64]} : {aspect_ratio: '3:4'};
+    let param = imgBase64 ? {aspect_ratio: '16:9', arrImage: [imgBase64]} : {aspect_ratio: '3:4'};
     const imgB64 = await toImageGenerate({prompt, param});
     await useImageStore.getState().addImages(props.keyName + '', imgB64)
 }

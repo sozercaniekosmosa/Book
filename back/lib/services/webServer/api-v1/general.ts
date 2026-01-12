@@ -4,10 +4,10 @@ import axios from "axios";
 import {isAllowHostPort} from "../../webUtils";
 import {removeFile, saveTextToFile} from "../../../filesystem";
 import glob from "../../../../../front/src/glob";
-import {OpenAPI, mistralGPT, getImageOpenAPI} from "../../../lm/ai";
+import {OpenAPI, mistralGPT, getImageOpenAPI, getImageGoogleAPI, getImageOpenAPI2} from "../../../lm/ai";
 import {config} from "dotenv";
 
-const {parsed: {FOLDER_ID, OAUTH_TOKEN, ARLIAI_API_KEY, BOTHUB_API_KEY, OPENROUTER_API_KEY}} = config();
+const {parsed: {FOLDER_ID, OAUTH_TOKEN, ARLIAI_API_KEY, BOTHUB_API_KEY, OPENROUTER_API_KEY, LAOZHANG_API_KEY}} = config();
 
 const routerGeneral = express.Router();
 
@@ -86,7 +86,9 @@ routerGeneral.post('/image', async (req, res) => {
     const {body: {prompt, param}} = req;
     let textGPT = '';
     try {
-        textGPT = await getImageOpenAPI(prompt, param, OPENROUTER_API_KEY);
+        textGPT = await getImageOpenAPI2(prompt, param, LAOZHANG_API_KEY);
+        // textGPT = await getImageGoogleAPI(prompt, param, GOOGLE_AI_STUDIO_API_KEY);
+        // textGPT = await getImageOpenAPI(prompt, param, GOOGLE_AI_STUDIO_API_KEY);
 
         res.status(200).send(textGPT);
     } catch (error) {

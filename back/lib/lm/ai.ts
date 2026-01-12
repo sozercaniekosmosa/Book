@@ -2,6 +2,7 @@ import axios from "axios";
 import path from "path";
 import {readFileAsync, writeFileAsync} from "../filesystem.js";
 import OpenAI from "openai";
+import {GoogleGenAI} from "@google/genai";
 import {config} from "dotenv";
 import glob from "../../../front/src/glob.js";
 import {generateUID} from "../utils.js";
@@ -52,17 +53,77 @@ export async function arliGPT(prompt, text, arliai_api_key) {
     }
 }
 
+export async function getImageOpenAPI2(prompt: string, param: any, api_key: string) {
+
+
+    try {
+        console.log("Generating image...");
+
+        const API_URL: string = "https://api.laozhang.ai/v1beta/models/gemini-3-pro-image-preview:generateContent";
+
+        let arrPart = [];
+        if (param?.arrImage)
+            arrPart = [{text: prompt}, ...param.arrImage.map((base64DataUri: any) => ({
+                inline_data: {mime_type: "image/webp", data: base64DataUri}
+            }))]
+
+
+        const payload = {
+            contents: [{
+                parts: arrPart
+            }],
+            generationConfig: {
+                responseModalities: ["IMAGE"],
+                imageConfig: {
+                    aspectRatio: param?.aspect_ratio ?? 'auto',
+                    imageSize: param?.resolution ?? '2K'
+                }
+            }
+        };
+
+        const response = await axios.post(API_URL, payload, {
+            headers: {
+                "Authorization": `Bearer ${api_key}`,
+                "Content-Type": "application/json"
+            },
+            timeout: 180000 // 180 секунд
+        });
+
+
+        // Извлечение данных изображения
+        const part = response.data.candidates[0].content.parts[0];
+        const rawBase64 = part.inlineData.data;
+
+        if (rawBase64 && rawBase64.length > 0) {
+            const mimeType = part.inlineData.mimeType || 'image/png';
+            return `data:${mimeType};base64,${rawBase64}`;
+        } else {
+            return 'Image generation request sent, but no image URL found.';
+        }
+
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error("Error:", error.message);
+        } else {
+            console.error("An unknown error occurred:", error);
+        }
+    }
+
+}
+
 export async function getImageOpenAPI(prompt: string, param: any, api_key: string) {
 
     try {
         if (param?.arrImage?.length > 3) throw 'Too many images > 3';
 
         const openai = new OpenAI({
-            baseURL: "https://openrouter.ai/api/v1",
+            baseURL: "https://api.laozhang.ai/v1/chat/completions",
+            // baseURL: "https://openrouter.ai/api/v1",
             apiKey: api_key,
         });
 
-        const model = "google/gemini-2.5-flash-image"
+        const model = "gemini-3-pro-image-preview"
+        // const model = "google/gemini-2.5-flash-image"
         // const model = "gemini-3-pro-image-preview"
         // const model = "google/gemini-2.5-flash-image-preview"
 
@@ -111,6 +172,143 @@ export async function getImageOpenAPI(prompt: string, param: any, api_key: strin
             console.error('Axios error:', error.response?.data || error.message);
         } else {
             console.error('Unexpected error:', error);
+        }
+        throw error;
+    }
+}
+
+export async function getImageGoogleAPI(prompt: string, param: any, api_key: string) {
+    try {
+        // Инициализация клиента
+        const ai = new GoogleGenAI({apiKey: api_key});
+        const modelName = "gemini-3-pro-image-preview";
+
+        if (param?.arrImage?.length > 5) throw new Error('Too many images > 5');
+
+        // Подготовка контента (Текст + Изображения)
+        const contents: any[] = [
+            {text: `${prompt}. Merge the attached images into a single cohesive scene.`}
+        ];
+
+        // Добавляем изображения, если они есть
+        if (param?.arrImage) {
+            param.arrImage.forEach((base64DataUri: string) => {
+                // Извлекаем mimeType и чистые данные base64 из Data URI
+                const matches = base64DataUri.match(/^data:([^;]+);base64,(.+)$/);
+                const mimeType = matches ? matches[1] : "image/jpeg";
+                const data = matches ? matches[2] : base64DataUri;
+
+                contents.push({
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: data,
+                    },
+                });
+            });
+        }
+
+        // Вызов генерации
+        const response = await ai.models.generateContent({
+            model: modelName,
+            contents: contents,
+            config: {
+                responseModalities: ['TEXT', 'IMAGE'],
+                imageConfig: {
+                    aspectRatio: param?.aspect_ratio ?? '1:1',
+                    imageSize: param?.resolution ?? '1K',
+                },
+            },
+        });
+
+        // Обработка результата
+        const parts = response.candidates?.[0]?.content?.parts;
+
+        if (!parts) {
+            throw new Error('No response parts found from Gemini');
+        }
+
+        // Ищем часть с данными изображения
+        const imagePart = parts.find(part => part.inlineData);
+
+        if (imagePart && imagePart.inlineData) {
+            // Возвращаем в формате Data URI для удобства использования на фронтенде
+            const base64Image = imagePart.inlineData.data;
+            const mimeType = imagePart.inlineData.mimeType || 'image/png';
+            return `data:${mimeType};base64,${base64Image}`;
+        } else {
+            // Если изображения нет, ищем текстовый ответ
+            const textPart = parts.find(part => part.text);
+            console.log('Gemini Text Response:', textPart?.text);
+            return textPart?.text || 'Image not generated';
+        }
+
+    } catch (error: any) {
+        console.error('Gemini Generation Error:', error.message || error);
+        throw error;
+    }
+}
+
+export async function getImageGoogleAPI2(prompt: string, param: any, api_key: string) {
+    try {
+        if (param?.arrImage?.length > 3) throw new Error('Too many images > 3');
+
+        // Внимание: для AI Studio используем метод :generateContent, а не :predict
+        // Модель: imagen-3.0-generate-001
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateContent?key=${api_key}`;
+
+        // Формируем части контента
+        const parts: any[] = [{text: prompt}];
+
+        // Добавляем картинки, если они есть
+        if (param?.arrImage) {
+            param.arrImage.forEach((base64DataUri: string) => {
+                const base64Data = base64DataUri.includes(',')
+                    ? base64DataUri.split(',')[1]
+                    : base64DataUri;
+
+                parts.push({
+                    inline_data: {
+                        mime_type: "image/png",
+                        data: base64Data
+                    }
+                });
+            });
+        }
+
+        const payload = {
+            contents: [
+                {
+                    role: "user",
+                    parts: parts
+                }
+            ],
+            generationConfig: {
+                // Параметры для Imagen 3
+                aspectRatio: param?.aspect_ratio || "1:1",
+                outputMimeType: "image/png",
+                numberOfImages: 1
+            }
+        };
+
+        const response = await axios.post(url, payload);
+
+        // В Imagen 3 ответ приходит в candidates[0].content.parts[0].inline_data
+        const candidate = response.data?.candidates?.[0];
+        const imagePart = candidate?.content?.parts?.find((p: any) => p.inline_data);
+
+        if (imagePart?.inline_data?.data) {
+            const mimeType = imagePart.inline_data.mime_type || "image/png";
+            return `data:${mimeType};base64,${imagePart.inline_data.data}`;
+        } else {
+            console.error("No image in response:", JSON.stringify(response.data));
+            throw new Error("Google AI Studio did not return an image.");
+        }
+
+    } catch (error: any) {
+        if (error.response) {
+            // Если 404 - значит модель недоступна по этому имени или в этом регионе
+            // Если 400 - ошибка в структуре JSON
+            console.error('Google API Error Response:', JSON.stringify(error.response.data));
         }
         throw error;
     }
