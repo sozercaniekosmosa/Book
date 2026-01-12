@@ -61,11 +61,9 @@ export async function getImageOpenAPI2(prompt: string, param: any, api_key: stri
 
         const API_URL: string = "https://api.laozhang.ai/v1beta/models/gemini-3-pro-image-preview:generateContent";
 
-        let arrPart = [];
-        if (param?.arrImage)
-            arrPart = [{text: prompt}, ...param.arrImage.map((base64DataUri: any) => ({
-                inline_data: {mime_type: "image/webp", data: base64DataUri}
-            }))]
+        const arrPart = param?.arrImage ? [{text: prompt}, ...param.arrImage.map((base64DataUri: any) => ({
+            inline_data: {mime_type: "image/webp", data: base64DataUri}
+        }))] : [{text: prompt}];
 
 
         const payload = {
