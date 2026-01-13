@@ -19,8 +19,27 @@ export const LoadImage = async (file: File, props: CallbackParams) => {
     await useImageStore.getState().addImages(props.keyName + '', webpBase64)
 }
 export const generateImage = async (
-    {prompt, imgBase64 = null, props}: { prompt: string, imgBase64?: string, props: CallbackParams }) => {
-    let param = imgBase64 ? {aspect_ratio: '16:9', arrImage: [imgBase64]} : {aspect_ratio: '3:4'};
+    {prompt, imgBase64 = null, props, type}: {
+        prompt: string,
+        imgBase64?: string,
+        props: CallbackParams,
+        type: null | 'scene' | 'character' | 'object'
+    }) => {
+
+    let param: any;
+
+    if (type === 'object') {
+        param = {aspect_ratio: '1:1', resolution: '1K'};
+    } else if (type === 'scene') {
+        param = {aspect_ratio: '16:9', resolution: '2K'};
+    } else if (type === 'character') {
+        param = {aspect_ratio: '3:4', resolution: '1K'};
+    }
+
+    if (imgBase64) {
+        param = {...param, arrImage: [imgBase64]};
+    }
+
     const imgB64 = await toImageGenerate({prompt, param});
     await useImageStore.getState().addImages(props.keyName + '', imgB64)
 }

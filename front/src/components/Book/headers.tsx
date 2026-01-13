@@ -265,7 +265,7 @@ const Characters = (props: CallbackParams) => {
                       title="Генерация персонажа"
                       onConfirm={async () => {
                           const prompt = await getPromptImageCharacter(props);
-                          await generateImage({prompt, props})
+                          await generateImage({prompt, props, type: "character"})
                       }}
                       onClickShift={async () => {
                           const prompt = await getPromptImageCharacter(props);
@@ -349,7 +349,7 @@ const Objects = (props: CallbackParams) => {
                       title="Генерация объекта/предмета"
                       onConfirm={async () => {
                           const prompt = await getPromptImageObject(props);
-                          await generateImage({prompt, props})
+                          await generateImage({prompt, props, type: "object"})
                       }}
                       onClickShift={async () => {
                           const prompt = await getPromptImageObject(props);
@@ -483,7 +483,7 @@ const SceneHeader = (props: CallbackParams) => {
                 description="Создать изображение сцены"
                 onConfirm={async () => {
                     const {prompt, imgBase64} = await getPromptImageScene(props);
-                    await generateImage({prompt, imgBase64, props})
+                    await generateImage({prompt, imgBase64, props, type: "scene"})
                 }}
                 onClickShift={async () => {
                     const {prompt, imgBase64} = await getPromptImageScene(props);
