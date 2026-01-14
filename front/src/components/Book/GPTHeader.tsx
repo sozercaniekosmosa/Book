@@ -198,7 +198,7 @@ const GPTHeader = (props: CallbackParams) => {
 
         let tags = props.value?.options?.tags;
         const isScene = isEqualString(props.parent?.options?.tags, 'scene');
-        const isObject = isEqualString(tags, 'object');
+        const isObject = props.path.includes('Все объекты');//isEqualString(tags, 'object');
         const isArt = isEqualString(tags, 'art');
         const isEvent = isEqualString(tags, 'event');
 

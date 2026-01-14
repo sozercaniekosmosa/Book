@@ -101,7 +101,7 @@ export const structEventResult = {
     options: {
         tags: 'event nowrap deletable incompressible',
         excludes: 'toggle desc requirements example',
-        numberOfLetters: 500
+        numberOfLetters: 300
     },
     'Событие': {
         options: {tags: 'hide', excludes: 'toggle desc requirements example'},

@@ -610,7 +610,8 @@ const PlotArc = (props: CallbackParams) => {
                       title={'Создать события'}
                       onClick={() => {
 
-                          const arr = props.value.value.split('\n')
+                          // const arr = props.value.value.split('\n')
+                          const arr = props.value.value.split(/(?=\b[1-9]\d{0,2}\))/g)
                           if (Array.isArray(arr)) {
                               arr.forEach(item => {
 
