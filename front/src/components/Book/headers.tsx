@@ -616,7 +616,7 @@ const PlotArc = (props: CallbackParams) => {
                               arr.forEach(item => {
 
                                   let _structEventResult = JSON.parse(JSON.stringify(structEventResult));
-                                  _structEventResult['Событие'].value = item;
+                                  _structEventResult['Событие'].value = item.replace(/\n$/g, '');
 
                                   let book = useBookStore.getState().book;
                                   const listForCheck = getValueByPath(book, props.path);
