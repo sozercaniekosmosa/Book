@@ -223,6 +223,8 @@ const GPTHeader = (props: CallbackParams) => {
         source = deleteFields(source, ['Результат', 'Визуальный стиль изображений', isObject ? '' : 'Все объекты'],);
         source = deleteFields(source, ['Событие', 'Литературное описаное событие'], props.path.slice(0, -1).join('.'));
 
+        source = deleteFields(source, ['Название кратко', 'Описание сцены', 'События', 'Сущности'], props.path.slice(0, -2).join('.'));
+
         const [obj, key] = getObjectByPath(source, props.path as string[], (obj, key, indexPath) => {
             debugger
             console.log(obj, key, indexPath)
@@ -253,7 +255,6 @@ const GPTHeader = (props: CallbackParams) => {
         });
 
         source = prepareStructureSecond(source, ['options']);
-
         total = Object.keys(listPathSrc).length;
 
         if (total > 0) {
